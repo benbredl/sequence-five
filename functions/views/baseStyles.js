@@ -31,10 +31,16 @@ body{
   margin:0;
   font-family:InterVar,Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
   color:var(--ink);
+
+  /* FIXED cosmic gradient background */
   background:
     radial-gradient(1200px 800px at 90% -10%, rgba(139,92,246,.20), transparent 60%),
     radial-gradient(1000px 600px at -10% 20%, rgba(34,211,238,.18), transparent 60%),
     linear-gradient(180deg,#080915,#070715 40%,#050512);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+
   overflow-y:auto;
 }
 
