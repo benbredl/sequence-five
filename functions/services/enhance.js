@@ -1,61 +1,60 @@
-import { OPENAI_MODEL, DEFAULT_SYSTEM_PROMPT } from "../config.js";
+// Uses Google Gemini 2.5 Flash (text) to enhance prompts.
+// Reuses the same GOOGLE_API_KEY as image generation.
 
-function extractTextFromResponses(resp) {
-  if (resp && typeof resp.output_text === "string" && resp.output_text.trim()) {
-    return resp.output_text.trim();
-  }
-  if (resp && Array.isArray(resp.output)) {
-    const parts = [];
-    for (const item of resp.output) {
-      const content = item && item.content;
-      if (Array.isArray(content)) {
-        for (const c of content) {
-          if (c && typeof c.text === "string") parts.push(c.text);
-          else if (typeof c === "string") parts.push(c);
-        }
-      }
+import { DEFAULT_SYSTEM_PROMPT, ENHANCER_MODEL } from "../config.js";
+
+/** Extract plain text from Gemini generateContent response */
+function extractTextFromGemini(resp) {
+  try {
+    const parts =
+      resp?.candidates?.[0]?.content?.parts ||
+      resp?.candidates?.[0]?.content?.parts ||
+      [];
+    const chunks = [];
+    for (const p of parts) {
+      if (typeof p?.text === "string" && p.text.trim()) chunks.push(p.text);
     }
-    const joined = parts.join("\n").trim();
-    if (joined) return joined;
+    return chunks.join("\n").trim();
+  } catch {
+    return "";
   }
-  return "";
 }
 
+/**
+ * Enhance a user prompt with a system instruction using Gemini text model.
+ * Returns { text, modelUsed }
+ */
 export async function enhancePrompt({ userText, systemPrompt }) {
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_KEY) throw new Error("Server missing OPENAI_API_KEY");
+  const GOOGLE_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!GOOGLE_KEY) throw new Error("Server missing GOOGLE_API_KEY");
 
-  const model = OPENAI_MODEL;
-  const system = (systemPrompt && systemPrompt.trim()) || DEFAULT_SYSTEM_PROMPT;
+  const model = ENHANCER_MODEL; // "gemini-2.5-flash"
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model
+  )}:generateContent?key=${encodeURIComponent(GOOGLE_KEY)}`;
 
-  // Try Responses API (latest docs)
-  try {
-    const r = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + OPENAI_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, instructions: system, input: userText })
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error?.message || `OpenAI Responses error (${r.status})`);
-    const text = extractTextFromResponses(j);
-    return { text: text || userText, modelUsed: `${model} via responses` };
-  } catch {
-    // Fallback: Chat Completions
-    const r2 = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + OPENAI_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userText }
-        ],
-        temperature: 0.8
-      })
-    });
-    const j2 = await r2.json();
-    if (!r2.ok) throw new Error(j2.error?.message || `OpenAI Chat error (${r2.status})`);
-    const text = (j2.choices?.[0]?.message?.content || "").trim();
-    return { text: text || userText, modelUsed: `${model} via chat.completions` };
-  }
+  // Gemini supports top-level systemInstruction (recommended)
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: String(userText || "") }]
+      }
+    ],
+    ...(systemPrompt
+      ? { systemInstruction: { role: "system", parts: [{ text: systemPrompt }] } }
+      : { systemInstruction: { role: "system", parts: [{ text: DEFAULT_SYSTEM_PROMPT }] } })
+    // You can add generationConfig here if you want (temperature, maxOutputTokens, etc.)
+  };
+
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j?.error?.message || `Gemini text API error (${r.status})`);
+
+  const text = extractTextFromGemini(j) || String(userText || "");
+  return { text, modelUsed: `${model} (text)` };
 }

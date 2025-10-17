@@ -4,6 +4,7 @@ import { BASE_STYLES } from "./baseStyles.js";
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
+  "<link rel='preconnect' href='https://firebasestorage.googleapis.com' crossorigin>",
   "<title>Sequence Five Generator — Storyboards</title><style>", BASE_STYLES, "</style></head>",
   "<body><div class='wrap'>",
 

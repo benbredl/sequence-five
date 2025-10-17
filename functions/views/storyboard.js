@@ -4,6 +4,7 @@ import { BASE_STYLES } from "./baseStyles.js";
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
+  "<link rel='preconnect' href='https://firebasestorage.googleapis.com' crossorigin>",
   "<title>Sequence Five Generator — Storyboard</title><style>",
   BASE_STYLES,
   ".sb-list{margin-top:16px}",
@@ -14,7 +15,7 @@ export const HTML = [
   ".sb-dot{position:relative;left:4px;top:2px;width:20px;height:20px;border-radius:50%",
   "  ;background:linear-gradient(180deg,#8b5cf6,#7c3aed)",
   "  ;box-shadow:0 0 0 5px rgba(139,92,246,.18), 0 10px 24px rgba(2,6,23,.55)}",
-  ".sb-card{border-radius:34px;padding:24px",
+  ".sb-card{border-radius:34px;padding:28px", /* increased padding as you requested previously */
   "  ;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.03))",
   "  ;border:1.2px solid #3a3561",
   "  ;box-shadow:0 26px 70px rgba(124,58,237,.20), inset 0 1px 0 rgba(255,255,255,.04)}",

@@ -4,6 +4,7 @@ import { BASE_STYLES } from "./baseStyles.js";
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
+  "<link rel='preconnect' href='https://firebasestorage.googleapis.com' crossorigin>",
   "<title>Sequence Five Generator — Image-To-Image</title><style>",
   BASE_STYLES,
   ".dz{position:relative;border-radius:24px;overflow:hidden;cursor:pointer;",
@@ -51,19 +52,18 @@ export const HTML = [
 
       "<div class='row' style='margin-top:10px'>",
         "<button id='go' class='btn'>Generate</button>",
-        "<button id='download' class='pill' disabled>Download</button>",
-        "<a id='viewInGallery' class='pill' style='display:none;text-decoration:none' href='/gallery'>View in Gallery ▶</a>",
+        "<span class='hint' style='margin-left:auto'>In progress: <strong id='inprog'>0</strong> / max <strong id='limit'>5</strong></span>",
       "</div>",
     "</div>",
 
     "<div class='card'>",
-      "<div class='row' style='justify-content:space-between'><strong>Result (16:9)</strong></div>",
-      "<div id='stage' class='imgwrap' style='margin-top:8px'><span class='hint'>No image yet</span></div>",
+      "<div class='row' style='justify-content:space-between'><strong>Results</strong></div>",
+      "<div id='resultsGrid' class='grid-gal' style='margin-top:12px'></div>",
+      "<div id='empty' class='hint'>No results yet.</div>",
     "</div>",
   "</div>",
 
   "<footer class='site-footer'>Made by Sequence Five</footer>",
-
   "<script src='/assets/img2img.js'></script>",
 
   "</div></body></html>"

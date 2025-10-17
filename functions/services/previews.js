@@ -32,16 +32,24 @@ export async function generatePreviewsFor(path, imageId) {
   const thumbPath = `${baseNoExt}_thumb.jpg`;
   const tinyPath = `${baseNoExt}_tiny.jpg`;
 
-  // Upload with download tokens
+  // Upload with download tokens + long-term caching
   const t1 = uuidv4();
   const t2 = uuidv4();
 
   await bucket.file(thumbPath).save(thumb, {
-    metadata: { contentType: "image/jpeg", metadata: { firebaseStorageDownloadTokens: t1 } },
+    metadata: {
+      contentType: "image/jpeg",
+      cacheControl: "public, max-age=31536000, immutable",
+      metadata: { firebaseStorageDownloadTokens: t1 }
+    },
     resumable: false
   });
   await bucket.file(tinyPath).save(tiny, {
-    metadata: { contentType: "image/jpeg", metadata: { firebaseStorageDownloadTokens: t2 } },
+    metadata: {
+      contentType: "image/jpeg",
+      cacheControl: "public, max-age=31536000, immutable",
+      metadata: { firebaseStorageDownloadTokens: t2 }
+    },
     resumable: false
   });
 

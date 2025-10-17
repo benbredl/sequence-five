@@ -1,11 +1,20 @@
 import { Router } from "express";
+import { MAX_PARALLEL_GENERATIONS } from "../config.js";
 
 const router = Router();
 
-/* ---------- Modal CSS used by gallery picker ---------- */
+/* ---------- Modal CSS used by "Add to Storyboard" picker ---------- */
 const MODAL_CSS = `
-.nb-modal-backdrop{position:fixed;inset:0;background:rgba(4,6,18,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999}
-.nb-modal{width:min(520px,92vw);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid #252b46;border-radius:18px;box-shadow:0 18px 60px rgba(2,6,23,.55),inset 0 1px 0 rgba(255,255,255,.04);padding:16px}
+.nb-modal-backdrop{position:fixed;inset:0;background:rgba(6,8,18,.58);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:10002}
+.nb-modal{
+  width:min(560px,92vw);
+  background:rgba(12,15,32,.62);
+  backdrop-filter: blur(12px) saturate(120%);
+  border:1px solid rgba(71,80,124,.8);
+  border-radius:18px;
+  box-shadow:0 24px 80px rgba(2,6,23,.65), inset 0 1px 0 rgba(255,255,255,.06);
+  padding:16px
+}
 .nb-modal h3{margin:0 0 10px 0;font-size:18px}
 .nb-modal .hint{color:#a1a8be;font-size:12px}
 .nb-list{margin-top:10px;max-height:320px;overflow:auto;border:1px solid #2f375a;border-radius:12px}
@@ -15,180 +24,581 @@ const MODAL_CSS = `
 .nb-close{margin-top:12px;display:flex;justify-content:flex-end}
 `;
 
-/* ---------- Gallery page JS (with Add to Storyboard modal) ---------- */
+/* ---------- Inline SVGs (small, consistent) ---------- */
+const SVG_DOWNLOAD = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+const SVG_ADD      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
+const SVG_DELETE   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
+const SVG_CLOSE    = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+
+/* ---------- Shared: fullscreen viewer CSS & helpers ---------- */
+function sharedViewerCssJs() {
+  const css = `
+  (function(){
+    if(document.getElementById('viewer-style')) return;
+    var css = ""
+      + ".viewer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;animation:vbIn .18s ease forwards}"
+      + "@keyframes vbIn{to{opacity:1}}"
+      + ".viewer-wrap{position:relative;display:inline-block;max-width:92vw;max-height:92vh}"
+      + ".viewer-img{max-width:92vw;max-height:92vh;border-radius:18px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);transition:filter .18s ease;display:block}"
+      + ".viewer-backdrop.blurred .viewer-img{filter:blur(10px) brightness(.65)}"
+      + ".viewer-bottombar{position:absolute;right:12px;bottom:12px;display:flex;gap:6px;align-items:center}"
+      + ".viewer-close{width:34px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}"
+      + ".viewer-actions{display:flex;gap:6px;align-items:center}"
+      + ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:none;background:transparent;padding:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff}"
+      + ".icon-btn[disabled]{opacity:.5;cursor:not-allowed}"
+      + ".icon-btn:hover{filter:brightness(1.08)}"
+      + ".icon-btn:active{transform:translateY(1px)}"
+      + ".icon-btn svg{width:16px;height:16px;display:block}"
+      + ".gal-overlay{position:absolute;left:0;right:0;bottom:0;padding:8px 10px;background:linear-gradient(0deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%);display:flex;align-items:center;justify-content:space-between;gap:6px;opacity:0;transform:translateY(8px);transition:opacity .22s ease, transform .22s ease;z-index:3;pointer-events:auto}"
+      + ".card-gal:hover .gal-overlay{opacity:1;transform:translateY(0)}"
+      + ".gal-meta{font-size:12px;color:#e6e9ff;display:flex;align-items:center;gap:8px}"
+      + ".gal-actions{display:flex;gap:6px;align-items:center}"
+      + ".gal-actions .icon-btn{color:#e6e9ff}"
+      + ".type-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid #2f375a;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));color:#c7ceed;padding:3px 7px;font-size:11px;font-weight:800;letter-spacing:.2px}";
+    var st=document.createElement('style'); st.id='viewer-style'; st.appendChild(document.createTextNode(css)); document.head.appendChild(st);
+  })();`;
+
+  const helpers = `
+  async function forceDownload(url, suggestedName){
+    try{
+      const r = await fetch(url, { mode: 'cors' });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      const objectUrl = URL.createObjectURL(blob);
+      a.href = objectUrl;
+      a.download = suggestedName || ('image-'+Date.now()+'.png');
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(objectUrl); a.remove(); }, 250);
+    }catch(_){
+      const a = document.createElement('a');
+      a.href = url;
+      a.setAttribute('download','image');
+      a.target = '_self';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }
+
+  function injectModalCss(){
+    if(document.getElementById('nb-modal-style')) return;
+    var st=document.createElement('style'); st.id='nb-modal-style';
+    st.appendChild(document.createTextNode(${JSON.stringify(MODAL_CSS)}));
+    document.head.appendChild(st);
+  }
+
+  function openPicker(imageId){
+    injectModalCss();
+    var backdrop=document.createElement('div'); backdrop.className='nb-modal-backdrop';
+    var modal=document.createElement('div'); modal.className='nb-modal';
+    var h=document.createElement('h3'); h.appendChild(document.createTextNode('Add to Storyboard')); modal.appendChild(h);
+    var p=document.createElement('div'); p.className='hint'; p.appendChild(document.createTextNode('Choose a storyboard to add this image to.')); modal.appendChild(p);
+    var list=document.createElement('div'); list.className='nb-list'; list.innerHTML='<div class="hint" style="padding:12px"><span class="spinner"></span> Loading storyboards…</div>'; modal.appendChild(list);
+    var closeRow=document.createElement('div'); closeRow.className='nb-close'; var closeBtn=document.createElement('button'); closeBtn.className='nb-pill'; closeBtn.appendChild(document.createTextNode('Close')); closeRow.appendChild(closeBtn); modal.appendChild(closeRow);
+    backdrop.appendChild(modal); document.body.appendChild(backdrop);
+    backdrop.addEventListener('click', function(e){ if(e.target===backdrop){ if(document.body.contains(backdrop)) document.body.removeChild(backdrop); }});
+    closeBtn.addEventListener('click', function(){ if(document.body.contains(backdrop)) document.body.removeChild(backdrop); });
+
+    fetch('/api/storyboards').then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j};});}).then(function(x){
+      if(!x.ok){ list.innerHTML = '<div class="hint" style="padding:12px">Failed to load</div>'; return; }
+      var arr = x.body.storyboards || [];
+      if(!arr.length){ list.innerHTML = '<div class="hint" style="padding:12px">You have no storyboards yet.</div>'; return; }
+      list.innerHTML='';
+      arr.forEach(function(sb){
+        var row=document.createElement('div'); row.className='nb-row';
+        var left=document.createElement('div');
+        var title=document.createElement('div'); title.style.fontWeight='700'; title.appendChild(document.createTextNode(sb.title||'')); left.appendChild(title);
+        var desc=document.createElement('div'); desc.className='hint'; desc.appendChild(document.createTextNode(sb.description||'')); left.appendChild(desc);
+        var add=document.createElement('button'); add.className='nb-pill'; add.appendChild(document.createTextNode('Add')); add.addEventListener('click', function(){
+          add.disabled=true; add.textContent='Adding…';
+          fetch('/api/storyboard/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyboardId:sb.id,imageId:imageId})})
+            .then(function(r){return r.json().then(function(j){return {ok:r.ok,body:j};});})
+            .then(function(x){ if(!x.ok) throw new Error(x.body.error||'Failed'); add.textContent='Added'; setTimeout(function(){ if(document.body.contains(backdrop)) document.body.removeChild(backdrop); }, 450); })
+            .catch(function(e){ alert(e.message||e); add.disabled=false; add.textContent='Add'; });
+        });
+        row.appendChild(left); row.appendChild(add); list.appendChild(row);
+      });
+    }).catch(function(){ list.innerHTML = '<div class="hint" style="padding:12px">Error loading</div>'; });
+
+    return backdrop;
+  }
+
+  function openViewerWithActions(opts){
+    opts = opts || {};
+    var url = opts.url;
+    var imageId = opts.imageId || null;
+    var onDeleted = typeof opts.onDeleted === 'function' ? opts.onDeleted : null;
+
+    var back = document.createElement('div'); back.className = 'viewer-backdrop';
+    var wrap = document.createElement('div'); wrap.className = 'viewer-wrap';
+    var img = document.createElement('img'); img.className = 'viewer-img'; img.alt='preview'; img.decoding='async'; img.src = url;
+
+    var bottombar = document.createElement('div'); bottombar.className='viewer-bottombar';
+    var actions = document.createElement('div'); actions.className='viewer-actions';
+
+    var aDown = document.createElement('button'); aDown.className='icon-btn'; aDown.title='Download'; aDown.innerHTML = ${JSON.stringify(SVG_DOWNLOAD)};
+    aDown.addEventListener('click', function(e){ e.stopPropagation(); forceDownload(url); });
+
+    var bAdd = document.createElement('button'); bAdd.className='icon-btn'; bAdd.title = imageId ? 'Add to Storyboard' : 'Add to Storyboard (image not saved yet)'; bAdd.innerHTML = ${JSON.stringify(SVG_ADD)};
+    if(imageId){
+      bAdd.addEventListener('click', function(e){
+        e.stopPropagation();
+        back.classList.add('blurred');
+        var nb = openPicker(imageId);
+        var obs = new MutationObserver(function(){
+          if(!document.body.contains(nb)){
+            back.classList.remove('blurred');
+            obs.disconnect();
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+      });
+    } else { bAdd.disabled = true; }
+
+    var bDel = document.createElement('button'); bDel.className='icon-btn'; bDel.title = imageId ? 'Delete' : 'Delete (image not saved yet)'; bDel.innerHTML = ${JSON.stringify(SVG_DELETE)};
+    if(imageId){
+      bDel.addEventListener('click', async function(e){
+        e.stopPropagation();
+        if(!confirm('Delete this image everywhere? This cannot be undone.')) return;
+        bDel.disabled = true;
+        try{
+          var r = await fetch('/api/image/delete',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ imageId }) });
+          var j = await r.json(); if(!r.ok) throw new Error(j.error || 'Failed');
+          if(onDeleted) onDeleted();
+          closeViewer();
+        }catch(err){ alert(err.message||err); bDel.disabled = false; }
+      });
+    } else { bDel.disabled = true; }
+
+    var close = document.createElement('button'); close.className='viewer-close'; close.innerHTML = ${JSON.stringify(SVG_CLOSE)};
+
+    actions.appendChild(aDown);
+    actions.appendChild(bAdd);
+    actions.appendChild(bDel);
+    bottombar.appendChild(actions);
+    bottombar.appendChild(close);
+
+    wrap.appendChild(img);
+    wrap.appendChild(bottombar);
+    back.appendChild(wrap);
+    document.body.appendChild(back);
+
+    var prevOverflow = document.body.style.overflow; document.body.style.overflow='hidden';
+    function closeViewer(){ if(back.parentNode){ back.parentNode.removeChild(back); document.body.style.overflow=prevOverflow; document.removeEventListener('keydown', onKey); } }
+    function onKey(e){ if(e.key==='Escape') closeViewer(); }
+    back.addEventListener('click', function(e){ if(e.target===back) closeViewer(); });
+    close.addEventListener('click', closeViewer);
+    document.addEventListener('keydown', onKey);
+
+    window.__closeViewer = closeViewer;
+  }`;
+
+  return { css, helpers };
+}
+
+/* ============================ GALLERY ============================ */
 router.get("/assets/gallery.js", (_req, res) => {
+  const shared = sharedViewerCssJs();
   res.type("application/javascript").send(`(function(){
     function byId(id){ return document.getElementById(id); }
-    function txt(s){ return document.createTextNode(s==null?'':String(s)); }
-    function injectModalCss(){ if(document.getElementById('nb-modal-style')) return; var st=document.createElement('style'); st.id='nb-modal-style'; st.appendChild(document.createTextNode(${JSON.stringify(MODAL_CSS)})); document.head.appendChild(st); }
 
-    function blurUp(imgEl, tinySrc, fullSrc){
-      if (!tinySrc || tinySrc === fullSrc) { imgEl.src = fullSrc; imgEl.classList.add('is-loaded'); return; }
-      imgEl.classList.add('blur-up'); imgEl.src = tinySrc; var hi = new Image(); hi.onload = function(){ imgEl.src = fullSrc; imgEl.classList.add('is-loaded'); }; hi.src = fullSrc;
-    }
+    ${shared.css}
+    ${shared.helpers}
 
-    function openPicker(imageId){
-      injectModalCss();
-      var backdrop=document.createElement('div'); backdrop.className='nb-modal-backdrop';
-      var modal=document.createElement('div'); modal.className='nb-modal';
-      var h=document.createElement('h3'); h.appendChild(txt('Add to Storyboard')); modal.appendChild(h);
-      var p=document.createElement('div'); p.className='hint'; p.appendChild(txt('Choose a storyboard to add this image to.')); modal.appendChild(p);
-      var list=document.createElement('div'); list.className='nb-list'; list.innerHTML='<div class="hint" style="padding:12px"><span class="spinner"></span> Loading storyboards…</div>'; modal.appendChild(list);
-      var closeRow=document.createElement('div'); closeRow.className='nb-close'; var closeBtn=document.createElement('button'); closeBtn.className='nb-pill'; closeBtn.appendChild(txt('Close')); closeRow.appendChild(closeBtn); modal.appendChild(closeRow);
-      backdrop.appendChild(modal); document.body.appendChild(backdrop);
-      backdrop.addEventListener('click', function(e){ if(e.target===backdrop){ document.body.removeChild(backdrop); }});
-      closeBtn.addEventListener('click', function(){ document.body.removeChild(backdrop); });
+    var grid = null, nextCursor = null, loading = false, ended = false;
 
-      fetch('/api/storyboards').then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j};});}).then(function(x){
-        if(!x.ok){ list.innerHTML = '<div class="hint" style="padding:12px">Failed to load</div>'; return; }
-        var arr = x.body.storyboards || [];
-        if(!arr.length){ list.innerHTML = '<div class="hint" style="padding:12px">You have no storyboards yet.</div>'; return; }
-        list.innerHTML='';
-        arr.forEach(function(sb){
-          var row=document.createElement('div'); row.className='nb-row';
-          var left=document.createElement('div');
-          var title=document.createElement('div'); title.style.fontWeight='700'; title.appendChild(txt(sb.title||'')); left.appendChild(title);
-          var desc=document.createElement('div'); desc.className='hint'; desc.appendChild(txt(sb.description||'')); left.appendChild(desc);
-          var add=document.createElement('button'); add.className='nb-pill'; add.appendChild(txt('Add')); add.addEventListener('click', function(){
-            add.disabled=true; add.textContent='Adding…';
-            fetch('/api/storyboard/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyboardId:sb.id,imageId:imageId})})
-              .then(function(r){return r.json().then(function(j){return {ok:r.ok,body:j};});})
-              .then(function(x){ if(!x.ok) throw new Error(x.body.error||'Failed'); add.textContent='Added'; setTimeout(function(){ if(document.body.contains(backdrop)) document.body.removeChild(backdrop); }, 600); })
-              .catch(function(e){ alert(e.message||e); add.disabled=false; add.textContent='Add'; });
-          });
-          row.appendChild(left); row.appendChild(add); list.appendChild(row);
-        });
-      }).catch(function(){ list.innerHTML = '<div class="hint" style="padding:12px">Error loading</div>'; });
-    }
-
-    function buildCard(item){
-      var card = document.createElement('div'); card.className='card-gal';
-      var img = document.createElement('img'); img.setAttribute('loading','lazy'); img.setAttribute('alt','generated image');
-      var tiny = item.tinyUrl || item.thumbUrl || item.url || ''; var full = item.thumbUrl || item.url || '';
-      blurUp(img, tiny, full); card.appendChild(img);
-
-      var meta = document.createElement('div'); meta.className='meta';
-      var ts = document.createElement('div'); ts.className='ts'; ts.appendChild(txt(item.createdAt ? new Date(item.createdAt).toLocaleString() : '')); meta.appendChild(ts);
-
-      var details = document.createElement('details'); var summary = document.createElement('summary'); summary.appendChild(txt('Details')); details.appendChild(summary);
-      var m1 = document.createElement('div'); m1.className='hint'; m1.style.marginTop='6px'; m1.appendChild(txt('Model: ' + (item.modelUsed || '')));
-      var m2 = document.createElement('div'); m2.className='hint'; m2.appendChild(txt('Mime: ' + (item.mimeType || '')));
-      var desc = document.createElement('div'); desc.style.marginTop='6px'; desc.style.whiteSpace='pre-wrap'; desc.appendChild(txt(item.enhancedPrompt || ''));
-      details.appendChild(m1); details.appendChild(m2); details.appendChild(desc); meta.appendChild(details);
-
-      var row = document.createElement('div'); row.className='row'; row.style.marginTop='8px';
-      var a = document.createElement('a'); a.className='pill'; a.href = item.url || full; a.setAttribute('download',''); a.appendChild(txt('Download')); row.appendChild(a);
-      var addSb=document.createElement('button'); addSb.className='pill'; addSb.style.marginLeft='6px'; addSb.appendChild(txt('Add to Storyboard')); addSb.addEventListener('click', function(){ openPicker(item.id); }); row.appendChild(addSb);
-      var del = document.createElement('button'); del.className='pill'; del.style.marginLeft='6px'; del.appendChild(txt('Delete'));
-      del.addEventListener('click', async function(){ if(!confirm('Delete this image everywhere? This cannot be undone.')) return; del.disabled = true; del.textContent = 'Deleting…'; try{ var r = await fetch('/api/image/delete',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ imageId: item.id }) }); var j = await r.json(); if(!r.ok) throw new Error(j.error || 'Failed'); byId('refresh').click(); }catch(e){ alert(e.message || e); del.disabled = false; del.textContent = 'Delete'; } });
-      row.appendChild(del);
-
-      meta.appendChild(row); card.appendChild(meta); return card;
-    }
-
-    async function load(){
-      var grid = byId('grid'); grid.innerHTML = '<div class="hint"><span class="spinner"></span> Loading...</div>';
-      try{
-        var r = await fetch('/api/gallery'); var j = await r.json(); if(!r.ok) throw new Error(j.error || 'Failed to load gallery');
-        var items = j.items || []; if(!items.length){ byId('empty').style.display='block'; grid.innerHTML=''; return; }
-        byId('empty').style.display='none'; grid.innerHTML = ''; items.forEach(function(it){ grid.appendChild(buildCard(it)); });
-      }catch(e){ grid.innerHTML = '<div class="hint">' + (e.message || e) + '</div>'; }
-    }
-
-    byId('refresh').addEventListener('click', load);
-    load();
-  })();`);
-});
-
-/* ---------- Storyboard page JS (timeline rendering) ---------- */
-router.get("/assets/storyboard.js", (_req, res) => {
-  res.type("application/javascript").send(`(function(){
-    function g(id){return document.getElementById(id);}
-    function qs(name){var u=new URL(location.href);return u.searchParams.get(name)||'';}
-    var sbid = qs('id'); if(!sbid){ document.body.innerHTML='<div class="wrap"><div class="card">Missing storyboard id</div></div>'; return; }
-
-    function blurUp(imgEl, tinySrc, fullSrc){
-      if(!fullSrc){imgEl.alt='missing';return;}
-      if(!tinySrc || tinySrc===fullSrc){ imgEl.src=fullSrc; imgEl.classList.add('is-loaded'); return; }
-      imgEl.classList.add('blur-up'); imgEl.src=tinySrc; var hi=new Image(); hi.onload=function(){ imgEl.src=fullSrc; imgEl.classList.add('is-loaded'); }; hi.src=fullSrc;
-    }
-
-    function toTitle(str){
-      if(!str) return 'Untitled'; var s=String(str).trim();
-      var words=s.replace(/[._-]/g,' ').split(/\\s+/).slice(0,7);
-      for(var i=0;i<words.length;i++){ words[i]=words[i].charAt(0).toUpperCase()+words[i].slice(1); }
-      return words.join(' ');
-    }
-
-    function itemEl(it){
-      var wrap=document.createElement('div'); wrap.className='sb-item';
-      var rail=document.createElement('div'); rail.className='sb-rail'; var dot=document.createElement('div'); dot.className='sb-dot'; rail.appendChild(dot);
-
-      var card=document.createElement('div'); card.className='sb-card';
-      var inner=document.createElement('div'); inner.className='sb-inner';
-
-      var left=document.createElement('div');
-      var title=document.createElement('h3'); title.className='sb-title'; title.appendChild(document.createTextNode(toTitle(it.enhancedPrompt||it.prompt||'Image')));
-      var desc=document.createElement('div'); desc.className='sb-desc'; desc.appendChild(document.createTextNode(it.enhancedPrompt||''));
-      var actions=document.createElement('div'); actions.className='sb-actions';
-      var upscale=document.createElement('button'); upscale.className='btn-neo'; upscale.appendChild(document.createTextNode('Upscale'));
-      var video=document.createElement('button'); video.className='btn-neo'; video.appendChild(document.createTextNode('Generate Video'));
-      var remove=document.createElement('button'); remove.className='pill'; remove.appendChild(document.createTextNode('Remove'));
-      remove.addEventListener('click', async function(){
-        remove.disabled=true; remove.textContent='Removing…';
-        try{
-          var rr=await fetch('/api/storyboard/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyboardId:sbid,imageId:it.imageId})});
-          var jj=await rr.json(); if(!rr.ok) throw new Error(jj.error||'Failed');
-          await load();
-        }catch(e){ alert(e.message||e); remove.disabled=false; remove.textContent='Remove'; }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          var img = entry.target;
+          var full = img.getAttribute('data-full');
+          var thumb = img.getAttribute('data-thumb');
+          if(thumb && full){
+            img.srcset = thumb + ' 480w, ' + full + ' 1600w';
+            img.sizes = '(min-width: 1200px) 25vw, (min-width: 800px) 33vw, 50vw';
+          }
+          var hi = new Image(); hi.decoding='async';
+          hi.onload=function(){ img.src = full || thumb; img.classList.add('is-loaded'); };
+          hi.src = full || thumb;
+          io.unobserve(img);
+        }
       });
-      actions.appendChild(upscale); actions.appendChild(video); actions.appendChild(remove);
-      left.appendChild(title); left.appendChild(desc); left.appendChild(actions);
+    }, { rootMargin: '200px 0px' });
 
-      var media=document.createElement('div'); media.className='sb-media';
-      var img=document.createElement('img'); var tiny=it.tinyUrl||it.thumbUrl||it.url||''; var full=it.thumbUrl||it.url||''; blurUp(img,tiny,full);
+    function blurUpPrepare(imgEl, tinySrc, thumbSrc, fullSrc, eager){
+      if(tinySrc){ imgEl.classList.add('blur-up'); imgEl.src = tinySrc; }
+      else if(thumbSrc){ imgEl.src = thumbSrc; }
+      imgEl.setAttribute('data-thumb', thumbSrc || '');
+      imgEl.setAttribute('data-full', fullSrc || '');
+      if(eager){
+        imgEl.setAttribute('loading','eager'); imgEl.setAttribute('fetchpriority','high'); imgEl.decoding='async';
+        var hi=new Image(); hi.decoding='async';
+        hi.onload=function(){ imgEl.src=fullSrc||thumbSrc; imgEl.classList.add('is-loaded'); };
+        hi.src=fullSrc||thumbSrc;
+      }else{
+        imgEl.setAttribute('loading','lazy'); imgEl.setAttribute('decoding','async'); imgEl.setAttribute('fetchpriority','low'); io.observe(imgEl);
+      }
+    }
+
+    function buildCard(item, idx){
+      var card = document.createElement('div'); card.className='card-gal';
+
+      var media = document.createElement('div'); media.className='media';
+      media.style.position='relative';
+      media.style.aspectRatio='16 / 9';
+      media.style.overflow='hidden';
+
+      var img = document.createElement('img'); img.alt='generated image';
+      img.style.position='absolute'; img.style.inset='0'; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='zoom-in';
+      var tiny = item.tinyUrl || ''; var thumb = item.thumbUrl || item.url || ''; var full = item.url || '';
+      blurUpPrepare(img, tiny, thumb, full, idx < 6);
+      img.addEventListener('click', function(){
+        openViewerWithActions({
+          url: full || thumb,
+          imageId: item.id,
+          onDeleted: function(){ resetAndLoad(); }
+        });
+      });
       media.appendChild(img);
 
-      inner.appendChild(left); inner.appendChild(media);
-      card.appendChild(inner);
+      var overlay = document.createElement('div'); overlay.className = 'gal-overlay';
+      var meta = document.createElement('div'); meta.className='gal-meta';
+      var dt = document.createElement('span'); dt.textContent = (item.createdAt ? new Date(item.createdAt).toLocaleString() : '');
+      meta.appendChild(dt);
+      var pill = document.createElement('span'); pill.className='type-pill'; pill.textContent = (item.type || '').toString() || '—';
+      meta.appendChild(pill);
 
-      wrap.appendChild(rail); wrap.appendChild(card);
-      return wrap;
+      var actions = document.createElement('div'); actions.className='gal-actions';
+
+      var btnDownload = document.createElement('button'); btnDownload.className='icon-btn'; btnDownload.title='Download'; btnDownload.innerHTML = ${JSON.stringify(SVG_DOWNLOAD)};
+      btnDownload.addEventListener('click', function(e){ e.stopPropagation(); forceDownload(full || thumb); });
+
+      var btnAdd = document.createElement('button'); btnAdd.className='icon-btn'; btnAdd.title='Add to Storyboard'; btnAdd.innerHTML = ${JSON.stringify(SVG_ADD)};
+      btnAdd.addEventListener('click', function(e){ e.stopPropagation(); openPicker(item.id); });
+
+      var btnDel = document.createElement('button'); btnDel.className='icon-btn'; btnDel.title='Delete'; btnDel.innerHTML = ${JSON.stringify(SVG_DELETE)};
+      btnDel.addEventListener('click', async function(e){
+        e.stopPropagation();
+        if(!confirm('Delete this image everywhere? This cannot be undone.')) return;
+        btnDel.disabled = true;
+        try{
+          var r = await fetch('/api/image/delete',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ imageId: item.id }) });
+          var j = await r.json(); if(!r.ok) throw new Error(j.error || 'Failed');
+          card.remove();
+        }catch(err){ alert(err.message || err); btnDel.disabled = false; }
+      });
+
+      actions.appendChild(btnDownload);
+      actions.appendChild(btnAdd);
+      actions.appendChild(btnDel);
+
+      overlay.appendChild(meta);
+      overlay.appendChild(actions);
+      overlay.addEventListener('click', function(e){ e.stopPropagation(); });
+
+      media.appendChild(overlay);
+      card.appendChild(media);
+      return card;
     }
 
-    async function load(){
-      var head=g('head'); var list=g('itemsWrap');
-      head.innerHTML='<div class="hint"><span class="spinner"></span> Loading…</div>'; list.innerHTML='';
+    async function fetchPage(cursor){
+      const qs = new URLSearchParams({ limit: '24' });
+      if(cursor) qs.set('cursor', cursor);
+      const r = await fetch('/api/gallery?' + qs.toString());
+      const j = await r.json();
+      if(!r.ok) throw new Error(j.error || 'Failed to load gallery');
+      return j;
+    }
+
+    async function loadMore(){
+      if(loading || ended) return;
+      loading = true;
       try{
-        var r=await fetch('/api/storyboard?id='+encodeURIComponent(sbid));
-        var j=await r.json(); if(!r.ok) throw new Error(j.error||'Failed');
-        var when=j.createdAt? new Date(j.createdAt).toLocaleString():'';
-        var hd=document.createElement('div');
-        var t=document.createElement('div'); t.style.fontSize='20px'; t.style.fontWeight='800'; t.appendChild(document.createTextNode(j.title||''));
-        var d=document.createElement('div'); d.className='hint'; d.style.margin='6px 0'; d.appendChild(document.createTextNode(j.description||''));
-        var m=document.createElement('div'); m.className='hint'; m.appendChild(document.createTextNode(when));
-        hd.appendChild(t); hd.appendChild(d); hd.appendChild(m); head.innerHTML=''; head.appendChild(hd);
-
-        var items=j.items||[];
-        if(!items.length){ g('empty').style.display='block'; }
-        else{ g('empty').style.display='none'; items.forEach(function(it){ list.appendChild(itemEl(it)); }); }
-      }catch(e){ head.innerHTML='<div class="hint">'+(e.message||e)+'</div>'; }
+        const data = await fetchPage(nextCursor);
+        const items = data.items || [];
+        if(!items.length){
+          ended = true;
+          return;
+        }
+        const frag = document.createDocumentFragment();
+        const currentCount = grid.children.length;
+        for (let i=0;i<items.length;i++){
+          frag.appendChild(buildCard(items[i], currentCount + i));
+        }
+        grid.appendChild(frag);
+        nextCursor = data.nextCursor || null;
+        if(!nextCursor) ended = true;
+        byId('empty').style.display = grid.children.length ? 'none' : 'block';
+      }catch(e){
+        console.error(e);
+      }finally{
+        loading = false;
+      }
     }
 
-    load();
+    function resetAndLoad(){
+      grid.innerHTML = '';
+      nextCursor = null; ended = false; loading = false;
+      byId('empty').style.display = 'none';
+      loadMore();
+    }
+
+    function setUpInfiniteScroll(){
+      const sentinel = byId('sentinel');
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((en)=>{
+          if(en.isIntersecting) loadMore();
+        });
+      }, { rootMargin: '800px 0px' });
+      observer.observe(sentinel);
+    }
+
+    byId('refresh').addEventListener('click', resetAndLoad);
+
+    grid = byId('grid');
+    resetAndLoad();
+    setUpInfiniteScroll();
   })();`);
 });
 
-/* ---------- Image-To-Image page JS (externalized to avoid inline parse issues) ---------- */
+/* ======================= GENERATORS (shared CSS/JS) ======================= */
+function generatorSharedCssJs() { return sharedViewerCssJs(); }
+
+/* -------- Text-to-Image client script (don’t send temp/limits) -------- */
+router.get("/assets/text2img.js", (_req, res) => {
+  const MAX = Number(MAX_PARALLEL_GENERATIONS || 5);
+  const shared = generatorSharedCssJs();
+  res.type("application/javascript").send(`(function(){
+    function g(id){ return document.getElementById(id); }
+    var PIXEL='data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+
+    ${shared.css}
+    ${shared.helpers}
+
+    var active=0, limit=${MAX};
+    if(g('limit')) g('limit').textContent = String(limit);
+    function setInprog(n){ if(g('inprog')) g('inprog').textContent = String(n); }
+
+    function updateBtn(){
+      var b=g('generate'); if(!b) return;
+      if(active>=limit){
+        if(!b.disabled){ b.dataset._label = b.textContent; }
+        b.disabled = true; b.title = 'Max parallel reached';
+        b.textContent = 'Generate (max reached)'; b.setAttribute('aria-disabled','true');
+      } else {
+        b.disabled = false; b.title = '';
+        b.textContent = b.dataset._label || 'Generate'; b.removeAttribute('aria-disabled');
+      }
+    }
+    updateBtn(); setInprog(active);
+
+    function addTile(){
+      g('empty').style.display='none';
+      var card=document.createElement('div'); card.className='card-gal';
+      var media=document.createElement('div'); media.className='media'; media.style.position='relative'; media.style.aspectRatio='16/9'; media.style.overflow='hidden';
+      var img=document.createElement('img'); img.alt=''; img.src=PIXEL; img.style.position='absolute'; img.style.inset='0'; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='zoom-in';
+      img.addEventListener('click', function(){ if(img.src && img.src!==PIXEL) openViewerWithActions({ url: img.src, imageId: img.dataset.imageId || null, onDeleted: function(){ var cardEl = img.closest('.card-gal'); if(cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl); } }); });
+      media.appendChild(img);
+
+      var overlay=document.createElement('div'); overlay.className='gal-overlay';
+      var meta=document.createElement('div'); meta.className='gal-meta';
+      var ts=document.createElement('span'); ts.textContent=new Date().toLocaleString(); meta.appendChild(ts);
+      var pill=document.createElement('span'); pill.className='type-pill'; pill.textContent='T2I'; meta.appendChild(pill);
+
+      var actions=document.createElement('div'); actions.className='gal-actions';
+      var btnDownload=document.createElement('button'); btnDownload.className='icon-btn'; btnDownload.title='Download'; btnDownload.innerHTML=${JSON.stringify(SVG_DOWNLOAD)};
+      btnDownload.addEventListener('click', function(e){ e.stopPropagation(); if(img.src && img.src!==PIXEL) forceDownload(img.src); });
+      var btnAdd=document.createElement('button'); btnAdd.className='icon-btn'; btnAdd.title='Add to Storyboard'; btnAdd.disabled=true; btnAdd.innerHTML=${JSON.stringify(SVG_ADD)};
+      var btnDel=document.createElement('button'); btnDel.className='icon-btn'; btnDel.title='Delete'; btnDel.disabled=true; btnDel.innerHTML=${JSON.stringify(SVG_DELETE)};
+      actions.appendChild(btnDownload); actions.appendChild(btnAdd); actions.appendChild(btnDel);
+
+      overlay.appendChild(meta); overlay.appendChild(actions);
+      media.appendChild(overlay);
+
+      card.appendChild(media);
+      var loading=document.createElement('div'); loading.className='loadingState'; loading.innerHTML='<span class="hint"><span class="spinner"></span> Generating …</span>'; card.appendChild(loading);
+
+      g('resultsGrid').prepend(card);
+
+      return { img, loading, btnDownload, btnAdd, btnDel };
+    }
+
+    // Streaming enhancer — no temperature / max token params sent anymore
+    async function streamEnhance(){
+      var btn=g('enhance'); var area=g('prompt');
+      var original = area.value;
+      var seed = (original || "").trim();
+      if(!seed){ alert('Please enter a prompt to enhance.'); return; }
+
+      btn.disabled=true; btn.classList.add('is-busy');
+      var old=btn.textContent; btn.textContent='Enhancing …';
+
+      var received = false;
+
+      async function fallbackNonStream(){
+        try{
+          const rr = await fetch('/api/enhance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:seed})});
+          const jj = await rr.json().catch(()=>({}));
+          if(rr.ok && jj.enhancedPrompt){
+            area.value = jj.enhancedPrompt;
+            return true;
+          }
+          if(jj && jj.error){
+            alert('Enhance error: ' + jj.error + (jj.code ? ' ['+jj.code+']' : ''));
+          } else {
+            alert('Enhance failed (non-stream).');
+          }
+          return false;
+        }catch(e){
+          alert('Enhance failed: ' + (e.message||e));
+          return false;
+        }
+      }
+
+      function normalizeNewlines(s){ return s.split('\\r\\n').join('\\n').split('\\r').join('\\n'); }
+      function extractEvents(bufferStr){
+        var out = []; var idx = bufferStr.indexOf('\\n\\n');
+        while (idx !== -1){ out.push(bufferStr.slice(0, idx)); bufferStr = bufferStr.slice(idx + 2); idx = bufferStr.indexOf('\\n\\n'); }
+        return { events: out, rest: bufferStr };
+      }
+
+      try{
+        const r = await fetch('/api/enhance/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: seed }) // <-- no temp/max
+        });
+
+        if(!r.ok || !r.body){
+          const ok = await fallbackNonStream();
+          if(!ok) area.value = original;
+          return;
+        }
+
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        var buffer = "";
+
+        let done = false;
+        while(!done){
+          const info = await reader.read();
+          done = info.done;
+          if(info.value){
+            buffer += decoder.decode(info.value, { stream: true });
+            buffer = normalizeNewlines(buffer);
+
+            const parts = extractEvents(buffer);
+            buffer = parts.rest;
+
+            for(var i=0;i<parts.events.length;i++){
+              const evt = parts.events[i];
+              const lines = evt.split('\\n');
+              let dataLine = null;
+              for (var j=0;j<lines.length;j++){
+                const ln = lines[j].trim();
+                if(ln.indexOf('data:') === 0){ dataLine = ln.slice(5).trim(); }
+              }
+              if(!dataLine) continue;
+              if(dataLine === "[DONE]"){ done = true; break; }
+
+              try{
+                const obj = JSON.parse(dataLine);
+                if(obj && obj.error){
+                  alert('Enhance error: ' + obj.error + (obj.code ? ' ['+obj.code+']' : ''));
+                  done = true; break;
+                }
+                let piece = "";
+                if (typeof obj.delta === "string") piece = obj.delta;
+                else if (typeof obj.output_text === "string") piece = obj.output_text;
+                else if (obj && obj.output && obj.output[0] && obj.output[0].content && obj.output[0].content[0] && typeof obj.output[0].content[0].text === "string") piece = obj.output[0].content[0].text;
+
+                if (piece){
+                  if(!received){ received = true; area.value = ""; }
+                  area.value += piece;
+                }
+              } catch(_e) { /* keepalive line */ }
+            }
+          }
+        }
+
+        if(!received){
+          const ok = await fallbackNonStream();
+          if(!ok) area.value = original;
+        }
+      }catch(_err){
+        const ok = await fallbackNonStream();
+        if(!ok) area.value = original;
+      }finally{
+        btn.disabled=false; btn.classList.remove('is-busy'); btn.textContent=old;
+      }
+    }
+
+    var enh = g('enhance');
+    if(enh){ enh.addEventListener('click', streamEnhance); }
+
+    var gen = g('generate');
+    if(gen){
+      gen.addEventListener('click', function(){
+        if(active>=limit) return;
+        var prompt = g('prompt').value.trim(); if(!prompt){ alert('Please enter a prompt.'); return; }
+        active++; setInprog(active); updateBtn();
+
+        var ui = addTile();
+        (async function(){
+          try{
+            var r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prompt, enhancedPrompt:prompt})});
+            var j=await r.json(); if(!r.ok) throw new Error(j.error||'Generate failed');
+            if(j.imageBase64 && j.mimeType){
+              var url='data:'+j.mimeType+';base64,'+j.imageBase64;
+              ui.img.src=url; ui.img.dataset.imageId = j.id || "";
+              ui.loading.remove();
+
+              if(j.id){
+                ui.btnAdd.disabled=false;
+                ui.btnAdd.onclick=function(e){ e.stopPropagation(); openPicker(j.id); };
+                ui.btnDel.disabled=false;
+                ui.btnDel.onclick=async function(e){
+                  e.stopPropagation();
+                  if(!confirm('Delete this image everywhere? This cannot be undone.')) return;
+                  ui.btnDel.disabled=true;
+                  try{
+                    var rr=await fetch('/api/image/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageId:j.id})});
+                    var jj=await rr.json(); if(!rr.ok) throw new Error(jj.error||'Delete failed');
+                    var card = ui.img.closest('.card-gal'); if(card && card.parentNode) card.parentNode.removeChild(card);
+                  }catch(err){ alert(err.message||err); ui.btnDel.disabled=false; }
+                };
+              }
+            } else {
+              ui.loading.innerHTML='<span class="hint">No image returned.</span>';
+            }
+          }catch(e){
+            ui.loading.innerHTML='<span class="hint">Error: '+(e.message||e)+'</span>';
+          }finally{
+            active--; setInprog(active); updateBtn();
+          }
+        })();
+      });
+    }
+  })();`);
+});
+
+/* -------- Image-to-Image client script -------- */
 router.get("/assets/img2img.js", (_req, res) => {
+  const MAX = Number(MAX_PARALLEL_GENERATIONS || 5);
+  const shared = generatorSharedCssJs();
   res.type("application/javascript").send(`(function(){
     function g(i){return document.getElementById(i);}
-    var dataUrl=null, mime=null;
-    var dz=g('dz'), file=g('file'), dzInner=g('dzInner');
+    var dataUrl=null;
+    var dz=g('dz'), file=g('file');
+    var PIXEL='data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+
+    ${shared.css}
+    ${shared.helpers}
 
     function setPreview(url){
       dataUrl=url;
-      g('stage').innerHTML='<span class="hint">Ready. Click Generate.</span>';
       dz.innerHTML =
         '<input id="file" type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer" />' +
         '<img alt="base" src="'+url+'" />' +
@@ -196,31 +606,11 @@ router.get("/assets/img2img.js", (_req, res) => {
       file = g('file');
       file.addEventListener('change', onFileChange);
     }
-
     function onFileChange(){
-      var f=this.files&&this.files[0];
-      if(!f){
-        dataUrl=null; mime=null;
-        dz.innerHTML =
-          '<input id="file" type="file" accept="image/*" />' +
-          '<div id="dzInner" style="text-align:center;padding:22px">' +
-          '<div class="dz-title" style="font-size:16px;margin-bottom:6px">Upload base image</div>' +
-          '<div class="hint">Click to choose or drag & drop</div>' +
-          '</div>' +
-          '<div class="dz-hint"><span class="dz-pill">PNG / JPG</span><span class="dz-pill">16:9 preferred</span></div>';
-        file = g('file');
-        file.addEventListener('change', onFileChange);
-        return;
-      }
-      mime=f.type||'image/png'; var rd=new FileReader();
-      rd.onload=function(e){ setPreview(e.target.result); };
-      rd.readAsDataURL(f);
+      var f=this.files&&this.files[0]; if(!f){ dataUrl=null; return; }
+      var rd=new FileReader(); rd.onload=function(e){ setPreview(e.target.result); }; rd.readAsDataURL(f);
     }
-
-    // initial bind
     file.addEventListener('change', onFileChange);
-
-    // Drag & drop support
     ['dragenter','dragover'].forEach(function(ev){
       dz.addEventListener(ev,function(e){ e.preventDefault(); dz.style.borderColor='#3a4680'; });
     });
@@ -229,48 +619,99 @@ router.get("/assets/img2img.js", (_req, res) => {
     });
     dz.addEventListener('drop',function(e){
       var f=(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); if(!f) return;
-      mime=f.type||'image/png'; var rd=new FileReader(); rd.onload=function(ev){ setPreview(ev.target.result); }; rd.readAsDataURL(f);
+      var rd=new FileReader(); rd.onload=function(ev){ setPreview(ev.target.result); }; rd.readAsDataURL(f);
     });
 
-    // Download button
-    g('download').addEventListener('click',function(){
-      var img=document.querySelector('#stage img'); if(!img) return;
-      var a=document.createElement('a'); a.href=img.src; a.download='variation.png'; a.click();
-    });
+    var active=0, limit=${MAX};
+    if(g('limit')) g('limit').textContent = String(limit);
+    function setInprog(n){ if(g('inprog')) g('inprog').textContent = String(n); }
+    function updateBtn(){ var b=g('go'); if(!b) return; if(active>=limit){ b.disabled=true; b.title='Max parallel reached'; } else { b.disabled=false; b.title=''; } }
+    updateBtn(); setInprog(active);
 
-    // Generate (prefix “Show me ” silently on the client)
-    g('go').addEventListener('click',function(){
-      var p=g('prompt').value.trim();
-      if(!dataUrl){ alert('Please choose a base image.'); return; }
-      if(!p){ alert('Please enter a prompt.'); return; }
-      var combined = 'Show me ' + p;
+    function addTile(){
+      g('empty').style.display='none';
+      var card=document.createElement('div'); card.className='card-gal';
+      var media=document.createElement('div'); media.className='media'; media.style.position='relative'; media.style.aspectRatio='16/9'; media.style.overflow='hidden';
+      var img=document.createElement('img'); img.alt=''; img.src=PIXEL; img.style.position='absolute'; img.style.inset='0'; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='zoom-in';
+      img.addEventListener('click', function(){ if(img.src && img.src!==PIXEL) openViewerWithActions({ url: img.src, imageId: img.dataset.imageId || null, onDeleted: function(){ var cardEl = img.closest('.card-gal'); if(cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl); } }); });
+      media.appendChild(img);
 
-      var btn=this; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Generating...';
-      g('stage').innerHTML='<div class="hint"><span class="spinner"></span> Calling APIs...</div>';
+      var overlay=document.createElement('div'); overlay.className='gal-overlay';
+      var meta=document.createElement('div'); meta.className='gal-meta';
+      var ts=document.createElement('span'); ts.textContent=new Date().toLocaleString(); meta.appendChild(ts);
+      var pill=document.createElement('span'); pill.className='type-pill'; pill.textContent='I2I'; meta.appendChild(pill);
 
-      fetch('/api/img2img',{
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ prompt: combined, image:{ dataUrl: dataUrl } })
-      })
-      .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, body:j }; }); })
-      .then(function(x){
-        var d=x.body; if(!x.ok) throw new Error(d.error||'Request failed');
-        if(d.imageBase64 && d.mimeType){
-          var url='data:'+d.mimeType+';base64,'+d.imageBase64;
-          g('stage').innerHTML='<img class="frame" alt="Generated" src="'+url+'" />';
-          g('download').disabled=false;
-        } else {
-          g('stage').innerHTML='<div class="hint">No image returned.</div>'; g('download').disabled=true;
-        }
-        if(d.galleryUrl){ var link=g('viewInGallery'); link.style.display='inline-block'; link.href='/gallery'; }
-      })
-      .catch(function(err){
-        console.error(err);
-        g('stage').innerHTML='<div class="hint">Error: '+(err.message||err)+'</div>'; g('download').disabled=true;
-      })
-      .finally(function(){ btn.disabled=false; btn.textContent='Generate'; });
-    });
+      var actions=document.createElement('div'); actions.className='gal-actions';
+      var btnDownload=document.createElement('button'); btnDownload.className='icon-btn'; btnDownload.title='Download'; btnDownload.innerHTML=${JSON.stringify(SVG_DOWNLOAD)};
+      btnDownload.addEventListener('click', function(e){ e.stopPropagation(); if(img.src && img.src!==PIXEL) forceDownload(img.src); });
+      var btnAdd=document.createElement('button'); btnAdd.className='icon-btn'; btnAdd.title='Add to Storyboard'; btnAdd.disabled=true; btnAdd.innerHTML=${JSON.stringify(SVG_ADD)};
+      var btnDel=document.createElement('button'); btnDel.className='icon-btn'; btnDel.title='Delete'; btnDel.disabled=true; btnDel.innerHTML=${JSON.stringify(SVG_DELETE)};
+      actions.appendChild(btnDownload); actions.appendChild(btnAdd); actions.appendChild(btnDel);
+
+      overlay.appendChild(meta); overlay.appendChild(actions);
+      media.appendChild(overlay);
+
+      card.appendChild(media);
+
+      var loading=document.createElement('div'); loading.className='loadingState'; loading.innerHTML='<span class="hint"><span class="spinner"></span> Generating …</span>'; card.appendChild(loading);
+
+      var grid=document.getElementById('resultsGrid'); grid.prepend(card);
+
+      return { img, loading, btnDownload, btnAdd, btnDel };
+    }
+
+    var go = g('go');
+    if(go){
+      go.addEventListener('click', function(){
+        if(active>=limit) return;
+        var p=g('prompt').value.trim();
+        if(!dataUrl){ alert('Please choose a base image.'); return; }
+        if(!p){ alert('Please enter a prompt.'); return; }
+
+        active++; setInprog(active); updateBtn();
+
+        var ui = addTile();
+        (async function(){
+          try{
+            var r=await fetch('/api/img2img',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ prompt: p, image:{ dataUrl: dataUrl } })});
+            var j=await r.json(); if(!r.ok) throw new Error(j.error||'Request failed');
+            if(j.imageBase64 && j.mimeType){
+              var url='data:'+j.mimeType+';base64,'+j.imageBase64;
+              ui.img.src=url; ui.img.dataset.imageId = j.id || "";
+              ui.loading.remove();
+
+              if(j.id){
+                ui.btnAdd.disabled=false;
+                ui.btnAdd.onclick=function(e){ e.stopPropagation(); openPicker(j.id); };
+                ui.btnDel.disabled=false;
+                ui.btnDel.onclick=async function(e){
+                  e.stopPropagation();
+                  if(!confirm('Delete this image everywhere? This cannot be undone.')) return;
+                  ui.btnDel.disabled=true;
+                  try{
+                    var rr=await fetch('/api/image/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageId:j.id})});
+                    var jj=await rr.json(); if(!rr.ok) throw new Error(jj.error||'Delete failed');
+                    var card = ui.img.closest('.card-gal'); if(card && card.parentNode) card.parentNode.removeChild(card);
+                  }catch(err){ alert(err.message||err); ui.btnDel.disabled=false; }
+                };
+              }
+            } else {
+              ui.loading.innerHTML='<span class="hint">No image returned.</span>';
+            }
+          }catch(e){
+            ui.loading.innerHTML='<span class="hint">Error: '+(e.message||e)+'</span>';
+          }finally{
+            active--; setInprog(active); updateBtn();
+          }
+        })();
+      });
+    }
   })();`);
+});
+
+/* dashboard placeholder */
+router.get("/assets/dashboard.js", (_req, res) => {
+  res.type("application/javascript").send(`(function(){ /* dashboard placeholder */ })();`);
 });
 
 export default router;

@@ -29,6 +29,8 @@ export const HTML = [
     "</div>",
     "<div id='grid' class='grid-gal' style='margin-top:12px'></div>",
     "<div id='empty' class='hint' style='display:none'>No images yet.</div>",
+    // Sentinel used by the IntersectionObserver for infinite scroll:
+    "<div id='sentinel' style='height:1px'></div>",
   "</div>",
 
   "<footer class='site-footer'>Made by Sequence Five</footer>",

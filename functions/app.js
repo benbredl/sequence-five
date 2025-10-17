@@ -4,7 +4,8 @@ import pages from "./routes/pages.js";
 import api from "./routes/api.js";
 import auth from "./middleware/auth.js";
 import apiStoryboards from "./routes/api.storyboards.js";
-import assets from "./routes/assets.js"; // ⬅️ NEW
+import assets from "./routes/assets.js";
+import apiBilling from "./routes/api.billing.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -27,6 +28,7 @@ app.use(auth);
 app.use(pages);
 app.use(api);
 app.use(apiStoryboards);
-app.use(assets); // ⬅️ NEW
+app.use(assets);
+app.use(apiBilling);
 
 export default app;

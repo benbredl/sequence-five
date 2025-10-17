@@ -2,20 +2,77 @@ import { Router } from "express";
 import { enhancePrompt } from "../services/enhance.js";
 import { generateFromText, generateFromImage } from "../services/gemini.js";
 import { saveImageAndRecord, deleteImageCompletely } from "../services/storage.js";
+import { DEFAULT_SYSTEM_PROMPT } from "../config.js";
 
 const router = Router();
 
-/* ---------- Enhance-only: show enhanced prompt immediately ---------- */
+/* ---------- Enhance-only (Gemini text; friendly errors) ---------- */
 router.post("/api/enhance", async (req, res) => {
   try {
     const { prompt, systemPrompt } = req.body || {};
-    if (!prompt || typeof prompt !== "string") return res.status(400).json({ error: "Missing prompt" });
-
+    if (!prompt || typeof prompt !== "string") {
+      return res.status(400).json({ error: "Missing prompt", code: "bad_request" });
+    }
     const { text: enhanced, modelUsed } = await enhancePrompt({ userText: prompt, systemPrompt });
-    res.json({ enhancedPrompt: enhanced, openaiModelUsed: modelUsed });
+    res.json({ enhancedPrompt: enhanced, openaiModelUsed: modelUsed }); // keep field name for UI compatibility
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message || String(e) });
+    const msg = e?.message || String(e);
+    console.error("enhance error:", msg);
+
+    if (/GOOGLE_API_KEY/i.test(msg) || /Server missing GOOGLE_API_KEY/i.test(msg)) {
+      return res.status(400).json({
+        error: "Server is missing GOOGLE_API_KEY. Set the secret and redeploy.",
+        code: "missing_google_api_key"
+      });
+    }
+    if (/Gemini/i.test(msg) || /generativelanguage/i.test(msg)) {
+      return res.status(400).json({
+        error: msg,
+        code: "gemini_error"
+      });
+    }
+
+    res.status(500).json({ error: msg, code: "enhance_failed" });
+  }
+});
+
+/* ---------- Enhance (STREAM-ish) — single SSE event from Gemini text ---------- */
+router.post("/api/enhance/stream", async (req, res) => {
+  try {
+    const { prompt, systemPrompt } = req.body || {};
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    if (!prompt || typeof prompt !== "string") {
+      res.write(`data: ${JSON.stringify({ error: "Missing prompt" })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    }
+
+    // We’ll call the non-stream enhance and emit it as a single SSE frame
+    try {
+      const { text } = await enhancePrompt({ userText: prompt, systemPrompt });
+      res.write(`data: ${JSON.stringify({ output_text: text })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    } catch (err) {
+      const msg = err?.message || String(err);
+      res.write(`data: ${JSON.stringify({ error: msg, code: "gemini_error" })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    }
+  } catch (e) {
+    const msg = e?.message || String(e);
+    console.error("enhance/stream error:", msg);
+    try {
+      res.write(`data: ${JSON.stringify({ error: msg, code: "enhance_stream_failed" })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch {
+      // ignore
+    }
   }
 });
 
@@ -39,12 +96,13 @@ router.post("/api/generate", async (req, res) => {
       base64,
       prompt,
       enhancedPrompt: enhanced,
-      modelUsed
+      modelUsed,
+      type: "T2I"
     });
 
     res.json({
       enhancedPrompt: enhanced,
-      openaiModelUsed: modelUsed,
+      openaiModelUsed: modelUsed, // label kept for UI compatibility
       mimeType,
       imageBase64: base64,
       galleryUrl,
@@ -83,7 +141,8 @@ router.post("/api/img2img", async (req, res) => {
       base64,
       prompt: combined,
       enhancedPrompt: combined,
-      modelUsed
+      modelUsed,
+      type: "I2I"
     });
 
     res.json({
@@ -100,23 +159,34 @@ router.post("/api/img2img", async (req, res) => {
   }
 });
 
-/* ---------- Gallery list ---------- */
-router.get("/api/gallery", async (_req, res) => {
+/* ---------- Gallery list (cursor + type) ---------- */
+router.get("/api/gallery", async (req, res) => {
   try {
     const { db } = await import("../firebase.js");
-    const snapRef = db.collection("images").orderBy("createdAt", "desc").limit(50);
-    const snap = await snapRef.get();
+    const limit = Math.min(parseInt(req.query.limit || "24", 10) || 24, 60);
+    const cursor = req.query.cursor ? String(req.query.cursor) : null;
+
+    let ref = db.collection("images").orderBy("createdAt", "desc").limit(limit);
+    if (cursor) {
+      const curDoc = await db.collection("images").doc(cursor).get();
+      if (curDoc.exists) {
+        ref = ref.startAfter(curDoc);
+      }
+    }
+
+    const snap = await ref.get();
     const items = snap.docs.map((d) => {
       const v = d.data();
       return {
         id: d.id,
         url: v.url || null,
-        thumbUrl: v.thumbUrl || null,  // preview support
-        tinyUrl: v.tinyUrl || null,    // preview support
+        thumbUrl: v.thumbUrl || null,
+        tinyUrl: v.tinyUrl || null,
         path: v.path || null,
         prompt: v.prompt || null,
         enhancedPrompt: v.enhancedPrompt || null,
         modelUsed: v.modelUsed || null,
+        type: v.type || null,
         mimeType: v.mimeType || null,
         createdAt: v.createdAt
           ? v.createdAt.toDate
@@ -125,13 +195,16 @@ router.get("/api/gallery", async (_req, res) => {
           : null
       };
     });
-    res.json({ items });
+
+    const nextCursor = snap.docs.length === limit ? snap.docs[snap.docs.length - 1].id : null;
+    res.json({ items, nextCursor });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: e.message || String(e) });
   }
 });
 
-/* ---------- NEW: Delete image everywhere ---------- */
+/* ---------- Delete image everywhere ---------- */
 router.post("/api/image/delete", async (req, res) => {
   try {
     const { imageId } = req.body || {};

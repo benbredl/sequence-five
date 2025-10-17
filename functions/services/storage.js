@@ -17,7 +17,7 @@ function yyyymmdd(date = new Date()) {
 }
 
 /* ---------- save original + record ---------- */
-export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPrompt, modelUsed }) {
+export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPrompt, modelUsed, type }) {
   if (!base64) return { galleryUrl: null, id: null };
 
   const buffer = Buffer.from(base64, "base64");
@@ -45,6 +45,7 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
     prompt,
     enhancedPrompt,
     modelUsed,
+    type: type || null, // <- store the image type pill (T2I/I2I/etc.)
     mimeType,
     createdAt: FieldValueServer.serverTimestamp()
   });
@@ -92,10 +93,7 @@ export async function deleteImageCompletely(imageId) {
   }
 
   // 3) Remove from ALL storyboards.
-  // First attempt: collectionGroup on "items" where imageId == <id> (fast path).
-  // If that throws FAILED_PRECONDITION (e.g., index/CG edge), fall back to sweeping every storyboard.
   try {
-    // --- fast path ---
     const cgSnap = await db.collectionGroup("items").where("imageId", "==", String(imageId)).get();
     if (!cgSnap.empty) {
       const refs = cgSnap.docs.map((d) => d.ref);
@@ -108,8 +106,6 @@ export async function deleteImageCompletely(imageId) {
       }
     }
   } catch (e) {
-    // If the collection group approach fails, do a robust fallback:
-    // enumerate all storyboards and delete `storyboards/{sb}/items/{imageId}` blindly.
     if (String(e).includes("FAILED_PRECONDITION")) {
       try {
         const boardsSnap = await db.collection("storyboards").select().get(); // ids only
