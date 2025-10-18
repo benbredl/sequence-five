@@ -1,12 +1,12 @@
+// functions/routes/api.js
 import { Router } from "express";
 import { enhancePrompt } from "../services/enhance.js";
 import { generateFromText, generateFromImage } from "../services/gemini.js";
 import { saveImageAndRecord, deleteImageCompletely } from "../services/storage.js";
-import { DEFAULT_SYSTEM_PROMPT } from "../config.js";
 
 const router = Router();
 
-/* ---------- Enhance-only (Gemini text; friendly errors) ---------- */
+/* ---------- Prompt Enhancer ---------- */
 router.post("/api/enhance", async (req, res) => {
   try {
     const { prompt, systemPrompt } = req.body || {};
@@ -14,29 +14,15 @@ router.post("/api/enhance", async (req, res) => {
       return res.status(400).json({ error: "Missing prompt", code: "bad_request" });
     }
     const { text: enhanced, modelUsed } = await enhancePrompt({ userText: prompt, systemPrompt });
-    res.json({ enhancedPrompt: enhanced, openaiModelUsed: modelUsed }); // keep field name for UI compatibility
+    res.json({ enhancedPrompt: enhanced, openaiModelUsed: modelUsed });
   } catch (e) {
     const msg = e?.message || String(e);
     console.error("enhance error:", msg);
-
-    if (/GOOGLE_API_KEY/i.test(msg) || /Server missing GOOGLE_API_KEY/i.test(msg)) {
-      return res.status(400).json({
-        error: "Server is missing GOOGLE_API_KEY. Set the secret and redeploy.",
-        code: "missing_google_api_key"
-      });
-    }
-    if (/Gemini/i.test(msg) || /generativelanguage/i.test(msg)) {
-      return res.status(400).json({
-        error: msg,
-        code: "gemini_error"
-      });
-    }
-
     res.status(500).json({ error: msg, code: "enhance_failed" });
   }
 });
 
-/* ---------- Enhance (STREAM-ish) — single SSE event from Gemini text ---------- */
+/* ---------- SSE-ish Enhancer (single frame) ---------- */
 router.post("/api/enhance/stream", async (req, res) => {
   try {
     const { prompt, systemPrompt } = req.body || {};
@@ -51,7 +37,6 @@ router.post("/api/enhance/stream", async (req, res) => {
       return res.end();
     }
 
-    // We’ll call the non-stream enhance and emit it as a single SSE frame
     try {
       const { text } = await enhancePrompt({ userText: prompt, systemPrompt });
       res.write(`data: ${JSON.stringify({ output_text: text })}\n\n`);
@@ -70,13 +55,80 @@ router.post("/api/enhance/stream", async (req, res) => {
       res.write(`data: ${JSON.stringify({ error: msg, code: "enhance_stream_failed" })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 });
 
-/* ---------- Text → Image (accepts client-provided enhancedPrompt) ---------- */
+/* ---------- NEW unified generate-image ---------- */
+router.post("/api/generate-image", async (req, res) => {
+  try {
+    const { prompt, image, systemPrompt, enhancedPrompt } = req.body || {};
+    const promptStr = typeof prompt === "string" ? prompt.trim() : "";
+    if (!promptStr) return res.status(400).json({ error: "Missing prompt" });
+
+    const hasImage = image && typeof image.dataUrl === "string" && /^data:/.test(image.dataUrl);
+
+    if (hasImage) {
+      const combined = "Show me " + promptStr;
+      const m = image.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!m) return res.status(400).json({ error: "Invalid dataUrl" });
+      const baseMime = m[1];
+      const base64Data = m[2];
+
+      const { mimeType, base64 } = await generateFromImage(baseMime, base64Data, combined);
+
+      const modelUsed = "no-llm (prefix-only)";
+      const { galleryUrl, id } = await saveImageAndRecord({
+        mimeType,
+        base64,
+        prompt: combined,
+        enhancedPrompt: combined,
+        modelUsed,
+        type: "I2I"
+      });
+
+      return res.json({
+        enhancedPrompt: combined,
+        openaiModelUsed: "none",
+        mimeType,
+        imageBase64: base64,
+        galleryUrl,
+        id
+      });
+    } else {
+      let enhanced = enhancedPrompt;
+      let modelUsed = "client-provided (pre-enhanced)";
+      if (!enhanced) {
+        const out = await enhancePrompt({ userText: promptStr, systemPrompt });
+        enhanced = out.text;
+        modelUsed = out.modelUsed;
+      }
+      const { mimeType, base64 } = await generateFromText(enhanced);
+      const { galleryUrl, id } = await saveImageAndRecord({
+        mimeType,
+        base64,
+        prompt: promptStr,
+        enhancedPrompt: enhanced,
+        modelUsed,
+        type: "T2I"
+      });
+
+      return res.json({
+        enhancedPrompt: enhanced,
+        openaiModelUsed: modelUsed,
+        mimeType,
+        imageBase64: base64,
+        galleryUrl,
+        id
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
+/* ---------- Legacy endpoints kept (OK to remove later if you want) ---------- */
 router.post("/api/generate", async (req, res) => {
   try {
     const { prompt, systemPrompt, enhancedPrompt } = req.body || {};
@@ -102,7 +154,7 @@ router.post("/api/generate", async (req, res) => {
 
     res.json({
       enhancedPrompt: enhanced,
-      openaiModelUsed: modelUsed, // label kept for UI compatibility
+      openaiModelUsed: modelUsed,
       mimeType,
       imageBase64: base64,
       galleryUrl,
@@ -117,7 +169,6 @@ router.get("/api/generate", (_req, res) =>
   res.status(405).json({ error: "Use POST for /api/generate" })
 );
 
-/* ---------- Image → Image (NO enhancer; prefixes `Show me `) ---------- */
 router.post("/api/img2img", async (req, res) => {
   try {
     const { prompt, image } = req.body || {};
@@ -127,7 +178,6 @@ router.post("/api/img2img", async (req, res) => {
       return res.status(400).json({ error: "Missing prompt" });
 
     const combined = "Show me " + prompt.trim();
-
     const m = image.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (!m) return res.status(400).json({ error: "Invalid dataUrl" });
     const baseMime = m[1];
@@ -159,7 +209,7 @@ router.post("/api/img2img", async (req, res) => {
   }
 });
 
-/* ---------- Gallery list (cursor + type) ---------- */
+/* ---------- Gallery + Delete (unchanged) ---------- */
 router.get("/api/gallery", async (req, res) => {
   try {
     const { db } = await import("../firebase.js");
@@ -169,9 +219,7 @@ router.get("/api/gallery", async (req, res) => {
     let ref = db.collection("images").orderBy("createdAt", "desc").limit(limit);
     if (cursor) {
       const curDoc = await db.collection("images").doc(cursor).get();
-      if (curDoc.exists) {
-        ref = ref.startAfter(curDoc);
-      }
+      if (curDoc.exists) ref = ref.startAfter(curDoc);
     }
 
     const snap = await ref.get();
@@ -204,12 +252,10 @@ router.get("/api/gallery", async (req, res) => {
   }
 });
 
-/* ---------- Delete image everywhere ---------- */
 router.post("/api/image/delete", async (req, res) => {
   try {
     const { imageId } = req.body || {};
     if (!imageId) return res.status(400).json({ error: "imageId required" });
-
     const out = await deleteImageCompletely(String(imageId));
     res.json(out);
   } catch (e) {

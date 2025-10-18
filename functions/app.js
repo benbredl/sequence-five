@@ -1,3 +1,4 @@
+// functions/app.js
 import express from "express";
 import rateLimit from "express-rate-limit";
 import pages from "./routes/pages.js";
@@ -13,6 +14,9 @@ app.use(express.json({ limit: "10mb" }));
 
 // health first (no auth)
 app.get("/healthz", (_req, res) => res.type("text").send("ok"));
+
+// quiet the favicon 404s
+app.get("/favicon.ico", (_req, res) => res.status(204).end());
 
 // protections
 const limiter = rateLimit({

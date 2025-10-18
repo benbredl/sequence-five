@@ -1,3 +1,4 @@
+// functions/services/storage.js
 import { v4 as uuidv4 } from "uuid";
 import { db, bucket, FieldValueServer } from "../firebase.js";
 
@@ -28,9 +29,11 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
   const file = bucket.file(path);
   const token = uuidv4();
 
+  // ✅ Add long-term caching for the ORIGINAL image as well (thumb/tiny already cached elsewhere)
   await file.save(buffer, {
     metadata: {
       contentType: mimeType,
+      cacheControl: "public, max-age=31536000, immutable",
       metadata: { firebaseStorageDownloadTokens: token }
     },
     resumable: false

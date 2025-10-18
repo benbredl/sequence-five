@@ -1,41 +1,59 @@
 // functions/views/storyboards.js
 import { BASE_STYLES } from "./baseStyles.js";
 
+function navIcon(pathD){
+  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${pathD}"/></svg>`;
+}
+const ICONS = {
+  generator:  "M12 2l1.8 4.2L18 8l-4.2 1.8L12 14l-1.8-4.2L6 8l4.2-1.8L12 2z",
+  boards:     "M3 7h18M3 12h18M3 17h18",
+  archive:    "M3 4h18v4H3V4zm0 6h8v10H3V10zm10 0h8v10h-8V10z",
+  usage:      "M4 19V9m6 10V5m6 14V13m4 6V3",
+  logout:     "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+};
+
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-  "<link rel='preconnect' href='https://firebasestorage.googleapis.com' crossorigin>",
-  "<title>Sequence Five Generator — Storyboards</title><style>", BASE_STYLES, "</style></head>",
+  "<title>Sequence Five — Storyboards</title><style>", BASE_STYLES, "</style></head>",
   "<body><div class='wrap'>",
 
-  "<header>",
-    "<div class='brand'>",
-      "<div class='logo-wrap'><img class='logo-img' src='https://www.sequencefive.com/images/sequencefive-logo-navbar.svg' alt='Sequence Five logo'/></div>",
-      "<span>Sequence Five Generator</span>",
-    "</div>",
-    "<nav>",
-      "<a href='/'>Text-To-Image</a>",
-      "<a href='/img2img'>Image-To-Image</a>",
-      "<a href='/gallery'>Gallery</a>",
-      "<a class='active' href='/storyboards'>Storyboards</a>",
-    "</nav>",
-  "</header>",
+  "<div class='app-shell'>",
+    "<aside class='sidebar'>",
+      "<div class='brand'>",
+        "<div class='logo-wrap'><img class='logo-img' src='https://www.sequencefive.com/images/sequencefive-logo-navbar.svg' alt='Sequence Five logo'/></div>",
+        "<span>Sequence Five</span>",
+      "</div>",
+      "<nav class='side-nav'>",
+        `<a href='/image-generator'>${navIcon(ICONS.generator)}<span>Image Generator</span></a>`,
+        `<a class='active' href='/storyboards'>${navIcon(ICONS.boards)}<span>Storyboards</span></a>`,
+        `<a href='/gallery'>${navIcon(ICONS.archive)}<span>Archive</span></a>`,
+        `<a href='/dashboard'>${navIcon(ICONS.usage)}<span>Usage</span></a>`,
+        `<a class='section' href='/logout'>${navIcon(ICONS.logout)}<span>Logout</span></a>`,
+      "</nav>",
+    "</aside>",
 
-  "<div class='card' id='creator'>",
-    "<h3 style='margin:0 0 10px 0'>Create a Storyboard</h3>",
-    "<label>Title</label><input id='title' placeholder='e.g., Launch Teaser — Scene 03'/>",
-    "<label style='margin-top:8px'>Short description</label><textarea id='desc' placeholder='What is this storyboard for?'></textarea>",
-    "<div class='row' style='margin-top:12px'><button id='create' class='btn'>Create</button>",
-    "<span class='hint'>You can add images after creating.</span></div>",
-  "</div>",
+    "<main class='main'>",
+      "<div class='page-head'><h2 style='margin:0'>Storyboards</h2></div>",
 
-  "<div class='card' style='margin-top:20px'>",
-    "<div class='row' style='justify-content:space-between;align-items:center'>",
-      "<strong>Your Storyboards</strong>",
-      "<button id='refresh' class='pill'>Refresh</button>",
-    "</div>",
-    "<div id='list' style='margin-top:12px'></div>",
-    "<div id='empty' class='hint' style='display:none'>No storyboards yet.</div>",
+      "<div class='card' id='creator'>",
+        "<h3 style='margin:0 0 10px 0'>Create a Storyboard</h3>",
+        "<label>Title</label><input id='title' placeholder='e.g., Launch Teaser — Scene 03'/>",
+        "<label style='margin-top:8px'>Short description</label><textarea id='desc' placeholder='What is this storyboard for?'></textarea>",
+        "<div class='row' style='margin-top:12px'><button id='create' class='btn'>Create</button>",
+        "<span class='hint'>You can add images after creating.</span></div>",
+      "</div>",
+
+      "<div class='card' style='margin-top:20px'>",
+        "<div class='row' style='justify-content:space-between;align-items:center'>",
+          "<strong>Your Storyboards</strong>",
+          "<button id='refresh' class='pill'>Refresh</button>",
+        "</div>",
+        "<div id='list' style='margin-top:12px'></div>",
+        "<div id='empty' class='hint' style='display:none'>No storyboards yet.</div>",
+      "</div>",
+    "</main>",
   "</div>",
 
   "<footer class='site-footer'>Made by Sequence Five</footer>",

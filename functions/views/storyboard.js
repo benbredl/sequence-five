@@ -1,11 +1,22 @@
 // functions/views/storyboard.js
 import { BASE_STYLES } from "./baseStyles.js";
 
+function navIcon(pathD){
+  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${pathD}"/></svg>`;
+}
+const ICONS = {
+  generator:  "M12 2l1.8 4.2L18 8l-4.2 1.8L12 14l-1.8-4.2L6 8l4.2-1.8L12 2z",
+  boards:     "M3 7h18M3 12h18M3 17h18",
+  archive:    "M3 4h18v4H3V4zm0 6h8v10H3V10zm10 0h8v10h-8V10z",
+  usage:      "M4 19V9m6 10V5m6 14V13m4 6V3",
+  logout:     "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+};
+
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-  "<link rel='preconnect' href='https://firebasestorage.googleapis.com' crossorigin>",
-  "<title>Sequence Five Generator — Storyboard</title><style>",
+  "<title>Sequence Five — Storyboard</title><style>",
   BASE_STYLES,
   ".sb-list{margin-top:16px}",
   ".sb-item{display:grid;grid-template-columns:28px 1fr;gap:18px;margin:28px 0}",
@@ -15,7 +26,7 @@ export const HTML = [
   ".sb-dot{position:relative;left:4px;top:2px;width:20px;height:20px;border-radius:50%",
   "  ;background:linear-gradient(180deg,#8b5cf6,#7c3aed)",
   "  ;box-shadow:0 0 0 5px rgba(139,92,246,.18), 0 10px 24px rgba(2,6,23,.55)}",
-  ".sb-card{border-radius:34px;padding:28px", /* increased padding as you requested previously */
+  ".sb-card{border-radius:34px;padding:28px",
   "  ;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.03))",
   "  ;border:1.2px solid #3a3561",
   "  ;box-shadow:0 26px 70px rgba(124,58,237,.20), inset 0 1px 0 rgba(255,255,255,.04)}",
@@ -35,22 +46,28 @@ export const HTML = [
   "</style></head>",
   "<body><div class='wrap'>",
 
-  "<header>",
-    "<div class='brand'>",
-      "<div class='logo-wrap'><img class='logo-img' src='https://www.sequencefive.com/images/sequencefive-logo-navbar.svg' alt='Sequence Five logo'/></div>",
-      "<span>Sequence Five Generator</span>",
-    "</div>",
-    "<nav>",
-      "<a href='/'>Text-To-Image</a>",
-      "<a href='/img2img'>Image-To-Image</a>",
-      "<a href='/gallery'>Gallery</a>",
-      "<a class='active' href='/storyboards'>Storyboards</a>",
-    "</nav>",
-  "</header>",
+  "<div class='app-shell'>",
+    "<aside class='sidebar'>",
+      "<div class='brand'>",
+        "<div class='logo-wrap'><img class='logo-img' src='https://www.sequencefive.com/images/sequencefive-logo-navbar.svg' alt='Sequence Five logo'/></div>",
+        "<span>Sequence Five</span>",
+      "</div>",
+      "<nav class='side-nav'>",
+        `<a href='/image-generator'>${navIcon(ICONS.generator)}<span>Image Generator</span></a>`,
+        `<a class='active' href='/storyboards'>${navIcon(ICONS.boards)}<span>Storyboards</span></a>`,
+        `<a href='/gallery'>${navIcon(ICONS.archive)}<span>Archive</span></a>`,
+        `<a href='/dashboard'>${navIcon(ICONS.usage)}<span>Usage</span></a>`,
+        `<a class='section' href='/logout'>${navIcon(ICONS.logout)}<span>Logout</span></a>`,
+      "</nav>",
+    "</aside>",
 
-  "<div class='card' id='head'><div class='hint'>Loading…</div></div>",
-  "<div class='sb-list' id='itemsWrap'></div>",
-  "<div id='empty' class='hint' style='display:none'>No items yet.</div>",
+    "<main class='main'>",
+      "<div class='page-head'><h2 style='margin:0'>Storyboard</h2></div>",
+      "<div class='card' id='head'><div class='hint'>Loading…</div></div>",
+      "<div class='sb-list' id='itemsWrap'></div>",
+      "<div id='empty' class='hint' style='display:none'>No items yet.</div>",
+    "</main>",
+  "</div>",
 
   "<footer class='site-footer'>Made by Sequence Five</footer>",
 

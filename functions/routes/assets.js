@@ -1,7 +1,37 @@
+// functions/routes/assets.js
 import { Router } from "express";
 import { MAX_PARALLEL_GENERATIONS } from "../config.js";
 
 const router = Router();
+
+/* ---------- Tiny assets so we don't 404 ---------- */
+router.get("/images/app-logo.svg", (_req, res) => {
+  res.type("image/svg+xml").send(`
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sequence Five">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <radialGradient id="g2" cx="50%" cy="0%" r="100%">
+      <stop offset="0" stop-color="rgba(255,255,255,.85)"/>
+      <stop offset="1" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#g1)" />
+  <circle cx="164" cy="164" r="58" fill="white" fill-opacity=".15"/>
+  <circle cx="348" cy="164" r="58" fill="white" fill-opacity=".22"/>
+  <circle cx="348" cy="348" r="58" fill="white" fill-opacity=".18"/>
+  <circle cx="164" cy="348" r="58" fill="white" fill-opacity=".10"/>
+  <path d="M128 256h256" stroke="white" stroke-opacity=".55" stroke-width="18" stroke-linecap="round"/>
+  <path d="M256 128v256" stroke="white" stroke-opacity=".35" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="140" fill="url(#g2)" />
+</svg>
+  `.trim());
+});
+
+// Avoid favicon noise
+router.get("/favicon.ico", (_req, res) => res.status(204).end());
 
 /* ---------- Modal CSS used by "Add to Storyboard" picker ---------- */
 const MODAL_CSS = `
@@ -24,11 +54,11 @@ const MODAL_CSS = `
 .nb-close{margin-top:12px;display:flex;justify-content:flex-end}
 `;
 
-/* ---------- Inline SVGs (small, consistent) ---------- */
+/* ---------- Inline SVGs ---------- */
 const SVG_DOWNLOAD = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
 const SVG_ADD      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
 const SVG_DELETE   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
-const SVG_CLOSE    = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+const SVG_CLOSE    = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
 
 /* ---------- Shared: fullscreen viewer CSS & helpers ---------- */
 function sharedViewerCssJs() {
@@ -198,7 +228,7 @@ function sharedViewerCssJs() {
   return { css, helpers };
 }
 
-/* ============================ GALLERY ============================ */
+/* ============================ ARCHIVE / GALLERY ============================ */
 router.get("/assets/gallery.js", (_req, res) => {
   const shared = sharedViewerCssJs();
   res.type("application/javascript").send(`(function(){
@@ -217,7 +247,7 @@ router.get("/assets/gallery.js", (_req, res) => {
           var thumb = img.getAttribute('data-thumb');
           if(thumb && full){
             img.srcset = thumb + ' 480w, ' + full + ' 1600w';
-            img.sizes = '(min-width: 1200px) 25vw, (min-width: 800px) 33vw, 50vw';
+            img.sizes = '(min-width: 1400px) 25vw, (min-width: 900px) 33vw, 50vw';
           }
           var hi = new Image(); hi.decoding='async';
           hi.onload=function(){ img.src = full || thumb; img.classList.add('is-loaded'); };
@@ -347,6 +377,7 @@ router.get("/assets/gallery.js", (_req, res) => {
 
     function setUpInfiniteScroll(){
       const sentinel = byId('sentinel');
+      if(!sentinel) return;
       const observer = new IntersectionObserver((entries) => {
         entries.forEach((en)=>{
           if(en.isIntersecting) loadMore();
@@ -355,357 +386,310 @@ router.get("/assets/gallery.js", (_req, res) => {
       observer.observe(sentinel);
     }
 
-    byId('refresh').addEventListener('click', resetAndLoad);
-
     grid = byId('grid');
+    if(!grid) return;
+    const refresh = byId('refresh');
+    if(refresh) refresh.addEventListener('click', resetAndLoad);
+
     resetAndLoad();
     setUpInfiniteScroll();
   })();`);
 });
 
-/* ======================= GENERATORS (shared CSS/JS) ======================= */
-function generatorSharedCssJs() { return sharedViewerCssJs(); }
-
-/* -------- Text-to-Image client script (don’t send temp/limits) -------- */
-router.get("/assets/text2img.js", (_req, res) => {
+/* ======================= UNIFIED GENERATOR (generator.js) ======================= */
+router.get("/assets/generator.js", (_req, res) => {
   const MAX = Number(MAX_PARALLEL_GENERATIONS || 5);
-  const shared = generatorSharedCssJs();
+  const shared = sharedViewerCssJs();
   res.type("application/javascript").send(`(function(){
     function g(id){ return document.getElementById(id); }
-    var PIXEL='data:image/gif;base64,R0lGODlhAQABAAAAACw=';
 
     ${shared.css}
     ${shared.helpers}
 
-    var active=0, limit=${MAX};
-    if(g('limit')) g('limit').textContent = String(limit);
-    function setInprog(n){ if(g('inprog')) g('inprog').textContent = String(n); }
+    var active = 0, limit = ${MAX};
+    var dataUrl = null; // base image data URL (no auto-orient)
+    var rawFile = null;
+
+    // Elements
+    var drop = g('drop'), fileInput = g('file'), dropInner = g('dropInner');
+    var metaLine = g('uploadMeta'), removeBtn = g('removeUpload');
+    var promptEl = g('prompt'), btnGen = g('generate'), btnEnh = g('enhance');
+    var results = g('resultsGrid'), emptyLbl = g('empty');
+    var inprogEl = g('inprog'), limitEl = g('limit');
+
+    if(limitEl) limitEl.textContent = String(limit);
+    function setInprog(n){ if(inprogEl) inprogEl.textContent = String(n); }
+    setInprog(active);
 
     function updateBtn(){
-      var b=g('generate'); if(!b) return;
-      if(active>=limit){
-        if(!b.disabled){ b.dataset._label = b.textContent; }
-        b.disabled = true; b.title = 'Max parallel reached';
-        b.textContent = 'Generate (max reached)'; b.setAttribute('aria-disabled','true');
+      if(!btnGen) return;
+      if(active >= limit){
+        if(!btnGen.disabled){ btnGen.dataset._label = btnGen.textContent; }
+        btnGen.disabled = true; btnGen.title = 'Max parallel reached';
+        btnGen.textContent = 'Generate (max reached)'; btnGen.setAttribute('aria-disabled','true');
       } else {
-        b.disabled = false; b.title = '';
-        b.textContent = b.dataset._label || 'Generate'; b.removeAttribute('aria-disabled');
+        btnGen.disabled = false; btnGen.title = '';
+        btnGen.textContent = btnGen.dataset._label || 'Generate'; btnGen.removeAttribute('aria-disabled');
       }
     }
-    updateBtn(); setInprog(active);
+    updateBtn();
 
-    function addTile(){
-      g('empty').style.display='none';
-      var card=document.createElement('div'); card.className='card-gal';
-      var media=document.createElement('div'); media.className='media'; media.style.position='relative'; media.style.aspectRatio='16/9'; media.style.overflow='hidden';
-      var img=document.createElement('img'); img.alt=''; img.src=PIXEL; img.style.position='absolute'; img.style.inset='0'; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='zoom-in';
-      img.addEventListener('click', function(){ if(img.src && img.src!==PIXEL) openViewerWithActions({ url: img.src, imageId: img.dataset.imageId || null, onDeleted: function(){ var cardEl = img.closest('.card-gal'); if(cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl); } }); });
-      media.appendChild(img);
-
-      var overlay=document.createElement('div'); overlay.className='gal-overlay';
-      var meta=document.createElement('div'); meta.className='gal-meta';
-      var ts=document.createElement('span'); ts.textContent=new Date().toLocaleString(); meta.appendChild(ts);
-      var pill=document.createElement('span'); pill.className='type-pill'; pill.textContent='T2I'; meta.appendChild(pill);
-
-      var actions=document.createElement('div'); actions.className='gal-actions';
-      var btnDownload=document.createElement('button'); btnDownload.className='icon-btn'; btnDownload.title='Download'; btnDownload.innerHTML=${JSON.stringify(SVG_DOWNLOAD)};
-      btnDownload.addEventListener('click', function(e){ e.stopPropagation(); if(img.src && img.src!==PIXEL) forceDownload(img.src); });
-      var btnAdd=document.createElement('button'); btnAdd.className='icon-btn'; btnAdd.title='Add to Storyboard'; btnAdd.disabled=true; btnAdd.innerHTML=${JSON.stringify(SVG_ADD)};
-      var btnDel=document.createElement('button'); btnDel.className='icon-btn'; btnDel.title='Delete'; btnDel.disabled=true; btnDel.innerHTML=${JSON.stringify(SVG_DELETE)};
-      actions.appendChild(btnDownload); actions.appendChild(btnAdd); actions.appendChild(btnDel);
-
-      overlay.appendChild(meta); overlay.appendChild(actions);
-      media.appendChild(overlay);
-
-      card.appendChild(media);
-      var loading=document.createElement('div'); loading.className='loadingState'; loading.innerHTML='<span class="hint"><span class="spinner"></span> Generating …</span>'; card.appendChild(loading);
-
-      g('resultsGrid').prepend(card);
-
-      return { img, loading, btnDownload, btnAdd, btnDel };
+    function setEnhEnabled(enabled){
+      if(!btnEnh) return;
+      btnEnh.disabled = !enabled;
+      btnEnh.title = enabled ? '' : 'Disabled when a base image is attached';
     }
 
-    // Streaming enhancer — no temperature / max token params sent anymore
-    async function streamEnhance(){
-      var btn=g('enhance'); var area=g('prompt');
-      var original = area.value;
-      var seed = (original || "").trim();
-      if(!seed){ alert('Please enter a prompt to enhance.'); return; }
-
-      btn.disabled=true; btn.classList.add('is-busy');
-      var old=btn.textContent; btn.textContent='Enhancing …';
-
-      var received = false;
-
-      async function fallbackNonStream(){
-        try{
-          const rr = await fetch('/api/enhance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:seed})});
-          const jj = await rr.json().catch(()=>({}));
-          if(rr.ok && jj.enhancedPrompt){
-            area.value = jj.enhancedPrompt;
-            return true;
-          }
-          if(jj && jj.error){
-            alert('Enhance error: ' + jj.error + (jj.code ? ' ['+jj.code+']' : ''));
-          } else {
-            alert('Enhance failed (non-stream).');
-          }
-          return false;
-        }catch(e){
-          alert('Enhance failed: ' + (e.message||e));
-          return false;
-        }
-      }
-
-      function normalizeNewlines(s){ return s.split('\\r\\n').join('\\n').split('\\r').join('\\n'); }
-      function extractEvents(bufferStr){
-        var out = []; var idx = bufferStr.indexOf('\\n\\n');
-        while (idx !== -1){ out.push(bufferStr.slice(0, idx)); bufferStr = bufferStr.slice(idx + 2); idx = bufferStr.indexOf('\\n\\n'); }
-        return { events: out, rest: bufferStr };
-      }
-
-      try{
-        const r = await fetch('/api/enhance/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: seed }) // <-- no temp/max
-        });
-
-        if(!r.ok || !r.body){
-          const ok = await fallbackNonStream();
-          if(!ok) area.value = original;
-          return;
-        }
-
-        const reader = r.body.getReader();
-        const decoder = new TextDecoder();
-        var buffer = "";
-
-        let done = false;
-        while(!done){
-          const info = await reader.read();
-          done = info.done;
-          if(info.value){
-            buffer += decoder.decode(info.value, { stream: true });
-            buffer = normalizeNewlines(buffer);
-
-            const parts = extractEvents(buffer);
-            buffer = parts.rest;
-
-            for(var i=0;i<parts.events.length;i++){
-              const evt = parts.events[i];
-              const lines = evt.split('\\n');
-              let dataLine = null;
-              for (var j=0;j<lines.length;j++){
-                const ln = lines[j].trim();
-                if(ln.indexOf('data:') === 0){ dataLine = ln.slice(5).trim(); }
-              }
-              if(!dataLine) continue;
-              if(dataLine === "[DONE]"){ done = true; break; }
-
-              try{
-                const obj = JSON.parse(dataLine);
-                if(obj && obj.error){
-                  alert('Enhance error: ' + obj.error + (obj.code ? ' ['+obj.code+']' : ''));
-                  done = true; break;
-                }
-                let piece = "";
-                if (typeof obj.delta === "string") piece = obj.delta;
-                else if (typeof obj.output_text === "string") piece = obj.output_text;
-                else if (obj && obj.output && obj.output[0] && obj.output[0].content && obj.output[0].content[0] && typeof obj.output[0].content[0].text === "string") piece = obj.output[0].content[0].text;
-
-                if (piece){
-                  if(!received){ received = true; area.value = ""; }
-                  area.value += piece;
-                }
-              } catch(_e) { /* keepalive line */ }
-            }
-          }
-        }
-
-        if(!received){
-          const ok = await fallbackNonStream();
-          if(!ok) area.value = original;
-        }
-      }catch(_err){
-        const ok = await fallbackNonStream();
-        if(!ok) area.value = original;
-      }finally{
-        btn.disabled=false; btn.classList.remove('is-busy'); btn.textContent=old;
-      }
+    /* ===== Upload helpers (NO auto-orient) ===== */
+    function setMeta(text, kind){
+      if(!metaLine) return;
+      metaLine.textContent = text || '';
+      metaLine.style.color = kind === 'error' ? '#ffb4b4' : '#a1a8be';
     }
-
-    var enh = g('enhance');
-    if(enh){ enh.addEventListener('click', streamEnhance); }
-
-    var gen = g('generate');
-    if(gen){
-      gen.addEventListener('click', function(){
-        if(active>=limit) return;
-        var prompt = g('prompt').value.trim(); if(!prompt){ alert('Please enter a prompt.'); return; }
-        active++; setInprog(active); updateBtn();
-
-        var ui = addTile();
-        (async function(){
-          try{
-            var r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prompt, enhancedPrompt:prompt})});
-            var j=await r.json(); if(!r.ok) throw new Error(j.error||'Generate failed');
-            if(j.imageBase64 && j.mimeType){
-              var url='data:'+j.mimeType+';base64,'+j.imageBase64;
-              ui.img.src=url; ui.img.dataset.imageId = j.id || "";
-              ui.loading.remove();
-
-              if(j.id){
-                ui.btnAdd.disabled=false;
-                ui.btnAdd.onclick=function(e){ e.stopPropagation(); openPicker(j.id); };
-                ui.btnDel.disabled=false;
-                ui.btnDel.onclick=async function(e){
-                  e.stopPropagation();
-                  if(!confirm('Delete this image everywhere? This cannot be undone.')) return;
-                  ui.btnDel.disabled=true;
-                  try{
-                    var rr=await fetch('/api/image/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageId:j.id})});
-                    var jj=await rr.json(); if(!rr.ok) throw new Error(jj.error||'Delete failed');
-                    var card = ui.img.closest('.card-gal'); if(card && card.parentNode) card.parentNode.removeChild(card);
-                  }catch(err){ alert(err.message||err); ui.btnDel.disabled=false; }
-                };
-              }
-            } else {
-              ui.loading.innerHTML='<span class="hint">No image returned.</span>';
-            }
-          }catch(e){
-            ui.loading.innerHTML='<span class="hint">Error: '+(e.message||e)+'</span>';
-          }finally{
-            active--; setInprog(active); updateBtn();
-          }
-        })();
-      });
+    function showProcessing(state, label){
+      if(!dropInner) return;
+      var proc = dropInner.querySelector('.processing');
+      if(state){
+        if(!proc){
+          proc = document.createElement('div');
+          proc.className = 'processing';
+          proc.innerHTML = '<div class="spinner-lg"></div><span class="hint"></span>';
+          dropInner.appendChild(proc);
+        }
+        proc.querySelector('.hint').textContent = label || 'Processing image…';
+      } else if(proc){ proc.remove(); }
     }
-  })();`);
-});
-
-/* -------- Image-to-Image client script -------- */
-router.get("/assets/img2img.js", (_req, res) => {
-  const MAX = Number(MAX_PARALLEL_GENERATIONS || 5);
-  const shared = generatorSharedCssJs();
-  res.type("application/javascript").send(`(function(){
-    function g(i){return document.getElementById(i);}
-    var dataUrl=null;
-    var dz=g('dz'), file=g('file');
-    var PIXEL='data:image/gif;base64,R0lGODlhAQABAAAAACw=';
-
-    ${shared.css}
-    ${shared.helpers}
-
+    function clearPreview(){
+      dataUrl = null; rawFile = null; setMeta(''); showProcessing(false);
+      if(dropInner){ dropInner.innerHTML = '<div class="circle">🖼️</div><div>Upload base image (optional)</div>'; }
+      if(removeBtn) removeBtn.style.display = 'none';
+      var prev = drop ? drop.querySelector('img.preview') : null;
+      if(prev && prev.parentNode) prev.parentNode.removeChild(prev);
+      setEnhEnabled(true); // re-enable enhancer
+    }
     function setPreview(url){
-      dataUrl=url;
-      dz.innerHTML =
-        '<input id="file" type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer" />' +
-        '<img alt="base" src="'+url+'" />' +
-        '<div class="dz-hint"><span class="dz-pill">PNG / JPG</span><span class="dz-pill">16:9 preferred</span></div>';
-      file = g('file');
-      file.addEventListener('change', onFileChange);
+      if(!drop) return;
+      if(dropInner) dropInner.innerHTML = '';
+      var img = drop.querySelector('img.preview');
+      if(!img){
+        img = document.createElement('img'); img.className='preview'; img.alt='base image';
+        img.style.position='absolute'; img.style.inset='0';
+        img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover';
+        img.decoding='async'; drop.appendChild(img);
+      }
+      img.src = url;
+      if(removeBtn) removeBtn.style.display = 'inline-flex';
+      setEnhEnabled(false); // disable enhancer when we have an image
     }
-    function onFileChange(){
-      var f=this.files&&this.files[0]; if(!f){ dataUrl=null; return; }
-      var rd=new FileReader(); rd.onload=function(e){ setPreview(e.target.result); }; rd.readAsDataURL(f);
+    function loadImageURL(url){
+      return new Promise(function(resolve, reject){
+        var img = new Image();
+        img.onload = function(){ resolve(img); };
+        img.onerror = reject;
+        img.src = url; // No EXIF/auto-orient correction
+      });
     }
-    file.addEventListener('change', onFileChange);
-    ['dragenter','dragover'].forEach(function(ev){
-      dz.addEventListener(ev,function(e){ e.preventDefault(); dz.style.borderColor='#3a4680'; });
-    });
-    ['dragleave','drop'].forEach(function(ev){
-      dz.addEventListener(ev,function(e){ e.preventDefault(); dz.style.borderColor='#2a3354'; });
-    });
-    dz.addEventListener('drop',function(e){
-      var f=(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); if(!f) return;
-      var rd=new FileReader(); rd.onload=function(ev){ setPreview(ev.target.result); }; rd.readAsDataURL(f);
+    async function transcodeToDataURL(file, opts){
+      var maxDim = (opts && opts.maxDim) || 1536;
+      var quality = (opts && opts.quality) || 0.9;
+      try{
+        showProcessing(true, 'Optimizing…');
+        var objURL = URL.createObjectURL(file);
+        var bmp = await loadImageURL(objURL);
+        var w = bmp.naturalWidth, h = bmp.naturalHeight;
+        var scale = Math.min(1, maxDim / Math.max(w, h));
+        var outW = Math.max(1, Math.round(w * scale)), outH = Math.max(1, Math.round(h * scale));
+        var c = document.createElement('canvas'); c.width = outW; c.height = outH;
+        var ctx = c.getContext('2d', { alpha:false, desynchronized:true });
+        ctx.fillStyle = '#000'; ctx.fillRect(0,0,outW,outH);
+        ctx.drawImage(bmp, 0, 0, outW, outH);
+        // Prefer webp if available, else jpeg
+        var tryWebp = c.toDataURL('image/webp');
+        var useWebp = (typeof tryWebp === 'string') && tryWebp.indexOf('data:image/webp') === 0;
+        var mime = useWebp ? 'image/webp' : 'image/jpeg';
+        var dataURL = c.toDataURL(mime, quality);
+        URL.revokeObjectURL(objURL);
+        showProcessing(false);
+        return { dataURL: dataURL, outW: outW, outH: outH, mime: mime };
+      }catch(e){ showProcessing(false); throw e; }
+    }
+    function friendlyBytes(n){
+      if(!Number.isFinite(n)) return '';
+      if(n < 1024) return n + ' B';
+      if(n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+      return (n/1024/1024).toFixed(2) + ' MB';
+    }
+    async function handleOptimizedFile(file){
+      var type = (file && file.type) || '';
+      var ok = /^(image\\/)(jpeg|png|webp|gif|heic|heif)/i.test(type);
+      if(!ok){ setMeta('Unsupported file type. Please use JPG, PNG, WEBP or GIF.', 'error'); return clearPreview(); }
+      if(file.size > 25 * 1024 * 1024){ setMeta('File too large (max 25MB).', 'error'); return clearPreview(); }
+      rawFile = file; setMeta('Reading image…');
+      try{
+        var before = file.size;
+        var out = await transcodeToDataURL(file, { maxDim: 1536, quality: 0.9 });
+        dataUrl = out.dataURL; setPreview(out.dataURL);
+        var afterBytes = Math.ceil((out.dataURL.length * 3) / 4);
+        var saved = Math.max(0, before - afterBytes);
+        setMeta('Ready • ' + out.outW + '×' + out.outH + ' • ' + friendlyBytes(afterBytes) + ' (' + friendlyBytes(saved) + ' saved)');
+      }catch(e){ setMeta('Failed to process image.', 'error'); clearPreview(); console.error(e); }
+    }
+
+    // Hide the native file input to prevent it blocking clicks and to avoid double dialog
+    if(fileInput){ fileInput.style.display = 'none'; }
+
+    // Make the whole drop area open the file dialog (single source of truth)
+    if(drop){
+      drop.tabIndex = 0; drop.setAttribute('role','button'); drop.setAttribute('aria-label','Upload base image');
+      drop.addEventListener('click', function(e){
+        if(fileInput){ fileInput.click(); }
+      });
+      drop.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          if(fileInput){ fileInput.click(); }
+        }
+      });
+      // Drag & drop
+      ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('is-drag'); }); });
+      ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('is-drag'); }); });
+      drop.addEventListener('drop', function(e){ var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) handleOptimizedFile(f); });
+    }
+
+    // File input change handler (single path)
+    if(fileInput){
+      fileInput.addEventListener('change', function(){
+        var f = this.files && this.files[0];
+        if(f) handleOptimizedFile(f);
+      });
+    }
+
+    // Paste support
+    document.addEventListener('paste', function(e){
+      if(!drop) return;
+      var items = e.clipboardData && e.clipboardData.items; if(!items) return;
+      for(var i=0;i<items.length;i++){ var it = items[i]; if(it.kind === 'file'){ var f = it.getAsFile(); if(f && /^image\\//i.test(f.type)){ handleOptimizedFile(f); break; } } }
     });
 
-    var active=0, limit=${MAX};
-    if(g('limit')) g('limit').textContent = String(limit);
-    function setInprog(n){ if(g('inprog')) g('inprog').textContent = String(n); }
-    function updateBtn(){ var b=g('go'); if(!b) return; if(active>=limit){ b.disabled=true; b.title='Max parallel reached'; } else { b.disabled=false; b.title=''; } }
-    updateBtn(); setInprog(active);
+    if(removeBtn){ removeBtn.addEventListener('click', function(e){ e.stopPropagation(); clearPreview(); }); removeBtn.style.display = 'none'; }
 
-    function addTile(){
-      g('empty').style.display='none';
-      var card=document.createElement('div'); card.className='card-gal';
-      var media=document.createElement('div'); media.className='media'; media.style.position='relative'; media.style.aspectRatio='16/9'; media.style.overflow='hidden';
-      var img=document.createElement('img'); img.alt=''; img.src=PIXEL; img.style.position='absolute'; img.style.inset='0'; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='zoom-in';
-      img.addEventListener('click', function(){ if(img.src && img.src!==PIXEL) openViewerWithActions({ url: img.src, imageId: img.dataset.imageId || null, onDeleted: function(){ var cardEl = img.closest('.card-gal'); if(cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl); } }); });
+    /* ===== Results & generation ===== */
+    function addResultCard(){
+      if(emptyLbl) emptyLbl.style.display='none';
+      if(!results) return null;
+      var card = document.createElement('div'); card.className='result-card';
+      var media = document.createElement('div'); media.className='result-media';
+      media.style.aspectRatio = '16 / 9'; // keep 16:9 box
+      var skel = document.createElement('div'); skel.className='skeleton';
+      var spinner = document.createElement('div'); spinner.className='spinner-lg';
+      skel.appendChild(spinner); media.appendChild(skel);
+      var img = document.createElement('img'); img.alt='generated image'; img.style.display='none';
       media.appendChild(img);
-
-      var overlay=document.createElement('div'); overlay.className='gal-overlay';
-      var meta=document.createElement('div'); meta.className='gal-meta';
-      var ts=document.createElement('span'); ts.textContent=new Date().toLocaleString(); meta.appendChild(ts);
-      var pill=document.createElement('span'); pill.className='type-pill'; pill.textContent='I2I'; meta.appendChild(pill);
-
-      var actions=document.createElement('div'); actions.className='gal-actions';
-      var btnDownload=document.createElement('button'); btnDownload.className='icon-btn'; btnDownload.title='Download'; btnDownload.innerHTML=${JSON.stringify(SVG_DOWNLOAD)};
-      btnDownload.addEventListener('click', function(e){ e.stopPropagation(); if(img.src && img.src!==PIXEL) forceDownload(img.src); });
-      var btnAdd=document.createElement('button'); btnAdd.className='icon-btn'; btnAdd.title='Add to Storyboard'; btnAdd.disabled=true; btnAdd.innerHTML=${JSON.stringify(SVG_ADD)};
-      var btnDel=document.createElement('button'); btnDel.className='icon-btn'; btnDel.title='Delete'; btnDel.disabled=true; btnDel.innerHTML=${JSON.stringify(SVG_DELETE)};
-      actions.appendChild(btnDownload); actions.appendChild(btnAdd); actions.appendChild(btnDel);
-
-      overlay.appendChild(meta); overlay.appendChild(actions);
-      media.appendChild(overlay);
-
-      card.appendChild(media);
-
-      var loading=document.createElement('div'); loading.className='loadingState'; loading.innerHTML='<span class="hint"><span class="spinner"></span> Generating …</span>'; card.appendChild(loading);
-
-      var grid=document.getElementById('resultsGrid'); grid.prepend(card);
-
-      return { img, loading, btnDownload, btnAdd, btnDel };
+      card.appendChild(media); results.prepend(card);
+      return { card: card, media: media, img: img, skel: skel };
     }
 
-    var go = g('go');
-    if(go){
-      go.addEventListener('click', function(){
-        if(active>=limit) return;
-        var p=g('prompt').value.trim();
-        if(!dataUrl){ alert('Please choose a base image.'); return; }
+    async function enhancePrompt(seed){
+      try{
+        var r = await fetch('/api/enhance/stream', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: seed }) });
+        if(!r.ok || !r.body){
+          var alt = await fetch('/api/enhance', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: seed }) });
+          var jj = await alt.json().catch(function(){ return {}; });
+          if(alt.ok && jj.enhancedPrompt) return jj.enhancedPrompt;
+          throw new Error(jj.error || 'Enhance failed');
+        }
+        var text = await r.text();
+        var parts = text.split("\\n\\n").map(function(s){ return s.trim(); }).filter(function(s){ return s.length; });
+        for(var i=parts.length-1;i>=0;i--){
+          var l = parts[i];
+          if(l.indexOf('data:') === 0){
+            var jsonStr = l.slice(5).trim();
+            try{
+              var obj = JSON.parse(jsonStr);
+              if(obj && typeof obj.output_text === 'string') return obj.output_text;
+            }catch(_){}
+          }
+        }
+        throw new Error('No enhance text');
+      }catch(e){ throw e; }
+    }
+
+    async function callGenerate(opts){
+      var prompt = opts.prompt; var baseImage = opts.baseImage;
+      try{
+        var r = await fetch('/api/generate-image', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: prompt, image: baseImage ? { dataUrl: baseImage } : null }) });
+        var j = await r.json().catch(function(){ return {}; });
+        if(!r.ok) throw new Error(j.error || 'Generate failed');
+        return j;
+      }catch(e){
+        // Fallback to legacy endpoints
+        if(baseImage){
+          var r1 = await fetch('/api/img2img', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: prompt, image: { dataUrl: baseImage } }) });
+          var j1 = await r1.json().catch(function(){ return {}; });
+          if(!r1.ok) throw new Error(j1.error || 'Generate (img2img) failed');
+          return j1;
+        } else {
+          var r2 = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: prompt, enhancedPrompt: prompt }) });
+          var j2 = await r2.json().catch(function(){ return {}; });
+          if(!r2.ok) throw new Error(j2.error || 'Generate (t2i) failed');
+          return j2;
+        }
+      }
+    }
+
+    if(btnEnh && promptEl){
+      btnEnh.addEventListener('click', async function(){
+        if(btnEnh.disabled) return;
+        var seed = (promptEl.value || '').trim();
+        if(!seed){ alert('Please enter a prompt to enhance.'); return; }
+        btnEnh.disabled = true; var old = btnEnh.textContent; btnEnh.textContent = 'Enhancing…';
+        try{
+          var enhanced = await enhancePrompt(seed);
+          promptEl.value = enhanced || seed;
+        }catch(e){ alert(e.message || e); }
+        finally{ setEnhEnabled(!dataUrl); btnEnh.textContent = old; }
+      });
+    }
+
+    if(btnGen && promptEl){
+      btnGen.addEventListener('click', function(){
+        if(active >= limit) return;
+        var p = (promptEl.value || '').trim();
         if(!p){ alert('Please enter a prompt.'); return; }
-
         active++; setInprog(active); updateBtn();
-
-        var ui = addTile();
+        var ui = addResultCard();
         (async function(){
           try{
-            var r=await fetch('/api/img2img',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ prompt: p, image:{ dataUrl: dataUrl } })});
-            var j=await r.json(); if(!r.ok) throw new Error(j.error||'Request failed');
-            if(j.imageBase64 && j.mimeType){
-              var url='data:'+j.mimeType+';base64,'+j.imageBase64;
-              ui.img.src=url; ui.img.dataset.imageId = j.id || "";
-              ui.loading.remove();
-
-              if(j.id){
-                ui.btnAdd.disabled=false;
-                ui.btnAdd.onclick=function(e){ e.stopPropagation(); openPicker(j.id); };
-                ui.btnDel.disabled=false;
-                ui.btnDel.onclick=async function(e){
-                  e.stopPropagation();
-                  if(!confirm('Delete this image everywhere? This cannot be undone.')) return;
-                  ui.btnDel.disabled=true;
-                  try{
-                    var rr=await fetch('/api/image/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageId:j.id})});
-                    var jj=await rr.json(); if(!rr.ok) throw new Error(jj.error||'Delete failed');
-                    var card = ui.img.closest('.card-gal'); if(card && card.parentNode) card.parentNode.removeChild(card);
-                  }catch(err){ alert(err.message||err); ui.btnDel.disabled=false; }
-                };
-              }
+            var res = await callGenerate({ prompt: p, baseImage: dataUrl });
+            if(!ui) return;
+            if(res && res.imageBase64 && res.mimeType){
+              var url = 'data:' + res.mimeType + ';base64,' + res.imageBase64;
+              ui.img.style.display = 'block'; ui.img.src = url; ui.img.dataset.imageId = res.id || '';
+              if(ui.skel && ui.skel.parentNode) ui.skel.parentNode.removeChild(ui.skel);
+              ui.img.style.cursor = 'zoom-in';
+              ui.img.addEventListener('click', function(){
+                openViewerWithActions({
+                  url: url,
+                  imageId: res.id || null,
+                  onDeleted: function(){
+                    var cardEl = ui.img.closest('.result-card');
+                    if(cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+                  }
+                });
+              });
             } else {
-              ui.loading.innerHTML='<span class="hint">No image returned.</span>';
+              if(ui.skel) ui.skel.innerHTML = '<span class="hint">No image returned.</span>';
             }
           }catch(e){
-            ui.loading.innerHTML='<span class="hint">Error: '+(e.message||e)+'</span>';
+            if(ui && ui.skel) ui.skel.innerHTML = '<span class="hint">Error: ' + (e.message||e) + '</span>';
           }finally{
             active--; setInprog(active); updateBtn();
           }
         })();
       });
     }
+
+    clearPreview();
   })();`);
 });
 
