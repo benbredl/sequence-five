@@ -6,11 +6,12 @@ export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
   "<link rel='preconnect' href='https://firebasestorage.googleapis.com' crossorigin>",
-  "<title>Sequence Five — Image Generator</title><style>", BASE_STYLES, "</style></head>",
+  "<title>Sequence Five — Image Generator</title>",
+  "<style>", BASE_STYLES, "</style></head>",
   "<body>",
   "<div class='app'>",
 
-    /* ===== Sidebar ===== */
+    // Sidebar (A2 — icon + text)
     "<aside class='sidebar'>",
       "<div class='nav-brand'>",
         "<div class='logo'><img src='/images/app-logo.svg' alt='Sequence Five logo'/></div>",
@@ -41,14 +42,14 @@ export const HTML = [
       "</nav>",
     "</aside>",
 
-    /* ===== Main ===== */
+    // Main
     "<main class='main'>",
       "<div class='wrap'>",
 
         "<div class='headerbar'>",
           "<div class='hgroup'>",
             "<h1>Image Generator</h1>",
-            "<div class='sub'>Text-to-image or image-to-image — same clean flow.</div>",
+            "<div class='sub'>Text-to-image or image-to-image — unified clean flow.</div>",
           "</div>",
           "<div class='row'>",
             "<span class='pill'>In progress: <strong id='inprog'>0</strong> / max <strong id='limit'>5</strong></span>",
@@ -56,8 +57,8 @@ export const HTML = [
         "</div>",
 
         "<div class='grid'>",
-          /* Left column: upload + prompt + actions */
-          "<div class='card'>",
+          // Left: inputs (kept fixed height feel; won’t grow with results)
+          "<div class='card' style='align-self:start'>",
             "<div id='drop' class='drop frame' tabindex='0' role='button' aria-label='Upload base image'>",
               "<input id='file' type='file' accept='image/*' style='display:none'/>",
               "<div id='dropInner' class='drop-inner'>",
@@ -80,7 +81,7 @@ export const HTML = [
             "</div>",
           "</div>",
 
-          /* Right column: results (one image per row, 16:9) */
+          // Right: results (one image per row, 16:9)
           "<div class='card'>",
             "<div class='row' style='justify-content:space-between'><strong>Results</strong></div>",
             "<div id='resultsGrid' style='margin-top:12px'></div>",

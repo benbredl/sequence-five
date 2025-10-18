@@ -1,62 +1,71 @@
 // functions/views/storyboards.js
 import { BASE_STYLES } from "./baseStyles.js";
 
-function navIcon(pathD){
-  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${pathD}"/></svg>`;
-}
-const ICONS = {
-  generator:  "M12 2l1.8 4.2L18 8l-4.2 1.8L12 14l-1.8-4.2L6 8l4.2-1.8L12 2z",
-  boards:     "M3 7h18M3 12h18M3 17h18",
-  archive:    "M3 4h18v4H3V4zm0 6h8v10H3V10zm10 0h8v10h-8V10z",
-  usage:      "M4 19V9m6 10V5m6 14V13m4 6V3",
-  logout:     "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
-};
-
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-  "<title>Sequence Five — Storyboards</title><style>", BASE_STYLES, "</style></head>",
-  "<body><div class='wrap'>",
+  "<title>Sequence Five — Storyboards</title>",
+  "<style>", BASE_STYLES, "</style></head>",
+  "<body>",
+  "<div class='app'>",
 
-  "<div class='app-shell'>",
     "<aside class='sidebar'>",
-      "<div class='brand'>",
-        "<div class='logo-wrap'><img class='logo-img' src='https://www.sequencefive.com/images/sequencefive-logo-navbar.svg' alt='Sequence Five logo'/></div>",
-        "<span>Sequence Five</span>",
+      "<div class='nav-brand'>",
+        "<div class='logo'><img src='/images/app-logo.svg' alt='Sequence Five logo'/></div>",
+        "<div class='nav-title'>Sequence Five</div>",
       "</div>",
-      "<nav class='side-nav'>",
-        `<a href='/image-generator'>${navIcon(ICONS.generator)}<span>Image Generator</span></a>`,
-        `<a class='active' href='/storyboards'>${navIcon(ICONS.boards)}<span>Storyboards</span></a>`,
-        `<a href='/gallery'>${navIcon(ICONS.archive)}<span>Archive</span></a>`,
-        `<a href='/dashboard'>${navIcon(ICONS.usage)}<span>Usage</span></a>`,
-        `<a class='section' href='/logout'>${navIcon(ICONS.logout)}<span>Logout</span></a>`,
+      "<nav class='nav'>",
+        "<a href='/'>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='7' rx='2'/><rect x='14' y='3' width='7' height='7' rx='2'/><rect x='14' y='14' width='7' height='7' rx='2'/><rect x='3' y='14' width='7' height='7' rx='2'/></svg>",
+          "<span>Image Generator</span>",
+        "</a>",
+        "<a class='active' href='/storyboards' aria-current='page'>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15V6a2 2 0 0 0-2-2H6'/><path d='M3 7v11a2 2 0 0 0 2 2h11'/><rect x='7' y='7' width='10' height='10' rx='2'/></svg>",
+          "<span>Storyboards</span>",
+        "</a>",
+        "<a href='/gallery'>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='7' rx='2'/><rect x='14' y='3' width='7' height='7' rx='2'/><rect x='14' y='14' width='7' height='7' rx='2'/><rect x='3' y='14' width='7' height='7' rx='2'/></svg>",
+          "<span>Archive</span>",
+        "</a>",
+        "<a href='/dashboard'>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 3v18h18'/><path d='M7 15l5-5 4 4 5-6'/></svg>",
+          "<span>Usage</span>",
+        "</a>",
+        "<span class='sep'></span>",
+        "<a href='#'>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/></svg>",
+          "<span>Logout</span>",
+        "</a>",
       "</nav>",
     "</aside>",
 
     "<main class='main'>",
-      "<div class='page-head'><h2 style='margin:0'>Storyboards</h2></div>",
-
-      "<div class='card' id='creator'>",
-        "<h3 style='margin:0 0 10px 0'>Create a Storyboard</h3>",
-        "<label>Title</label><input id='title' placeholder='e.g., Launch Teaser — Scene 03'/>",
-        "<label style='margin-top:8px'>Short description</label><textarea id='desc' placeholder='What is this storyboard for?'></textarea>",
-        "<div class='row' style='margin-top:12px'><button id='create' class='btn'>Create</button>",
-        "<span class='hint'>You can add images after creating.</span></div>",
-      "</div>",
-
-      "<div class='card' style='margin-top:20px'>",
-        "<div class='row' style='justify-content:space-between;align-items:center'>",
-          "<strong>Your Storyboards</strong>",
-          "<button id='refresh' class='pill'>Refresh</button>",
+      "<div class='wrap'>",
+        "<div class='headerbar'>",
+          "<div class='hgroup'><h1>Storyboards</h1><div class='sub'>Create and organize scenes.</div></div>",
         "</div>",
-        "<div id='list' style='margin-top:12px'></div>",
-        "<div id='empty' class='hint' style='display:none'>No storyboards yet.</div>",
+
+        "<div class='card' id='creator'>",
+          "<h3 style='margin:0 0 10px 0'>Create a Storyboard</h3>",
+          "<label>Title</label><input id='title' placeholder='e.g., Launch Teaser — Scene 03'/>",
+          "<label style='margin-top:8px'>Short description</label><textarea id='desc' placeholder='What is this storyboard for?'></textarea>",
+          "<div class='row' style='margin-top:12px'><button id='create' class='btn'>Create</button>",
+          "<span class='hint'>You can add images after creating.</span></div>",
+        "</div>",
+
+        "<div class='card' style='margin-top:20px'>",
+          "<div class='row' style='justify-content:space-between;align-items:center'>",
+            "<strong>Your Storyboards</strong>",
+            "<button id='refresh' class='pill'>Refresh</button>",
+          "</div>",
+          "<div id='list' style='margin-top:12px'></div>",
+          "<div id='empty' class='hint' style='display:none'>No storyboards yet.</div>",
+        "</div>",
+
+        "<footer class='site-footer'>Made by Sequence Five</footer>",
       "</div>",
     "</main>",
   "</div>",
-
-  "<footer class='site-footer'>Made by Sequence Five</footer>",
 
   "<script>",
   "(function(){",
@@ -105,5 +114,5 @@ export const HTML = [
   "})();",
   "</script>",
 
-  "</div></body></html>"
+  "</body></html>"
 ].join("");

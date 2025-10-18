@@ -4,10 +4,8 @@ import { BASE_STYLES } from "./baseStyles.js";
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-  "<title>Sequence Five — Archive</title><style>",
-  BASE_STYLES,
-  ".blur-up{filter:blur(12px);transform:translateZ(0);transition:filter .4s ease}.blur-up.is-loaded{filter:none}",
-  "</style></head>",
+  "<title>Sequence Five — Archive</title>",
+  "<style>", BASE_STYLES, ".blur-up{filter:blur(12px);transform:translateZ(0);transition:filter .4s ease}.blur-up.is-loaded{filter:none}", "</style></head>",
   "<body>",
   "<div class='app'>",
 
