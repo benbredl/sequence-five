@@ -1,10 +1,14 @@
 // functions/routes/assets.js
 import { Router } from "express";
-import { MAX_PARALLEL_GENERATIONS } from "../config.js";
-import fs from "node:fs/promises";
-import path from "node:path";
 
 const router = Router();
+
+/**
+ * NOTE:
+ * Static assets (JS/CSS) are now in `public/assets/` and are served
+ * directly by Firebase Hosting. Do NOT serve them from the function.
+ * This router only keeps minimal helpers like the inline SVG logo.
+ */
 
 /* ---------- Inline SVG logo (fallback) ---------- */
 router.get("/images/app-logo.svg", (_req, res) => {
@@ -15,32 +19,7 @@ router.get("/images/app-logo.svg", (_req, res) => {
   `.trim());
 });
 
-// Quiet favicon
+// Quiet favicon (Hosting can also provide /favicon.ico from /public if you add one)
 router.get("/favicon.ico", (_req, res) => res.status(204).end());
-
-/* ---------- Client bundles (served as static strings) ---------- */
-async function readAsset(relPath) {
-  const p = path.join(process.cwd(), "functions", "client", relPath);
-  return fs.readFile(p, "utf8");
-}
-
-// Gallery bundle
-router.get("/assets/gallery.js", async (_req, res) => {
-  const code = await readAsset("gallery.js");
-  res.type("application/javascript").send(code);
-});
-
-// Generator bundle (injects MAX_PARALLEL_GENERATIONS)
-router.get("/assets/generator.js", async (_req, res) => {
-  const raw = await readAsset("generator.js");
-  const code = raw.replace("__MAX_PARALLEL__", String(Number(MAX_PARALLEL_GENERATIONS || 5)));
-  res.type("application/javascript").send(code);
-});
-
-// Dashboard bundle
-router.get("/assets/dashboard.js", async (_req, res) => {
-  const code = await readAsset("dashboard.js");
-  res.type("application/javascript").send(code);
-});
 
 export default router;

@@ -95,9 +95,9 @@ body::before{
 
 /* Main + wrap */
 .main{min-height:100vh;display:flex;flex-direction:column}
-.wrap{ width:min(var(--wrap-max), var(--wrap-w)); margin-inline:auto; padding:0 18px }
+.wrap{ width:min(var(--wrap-max), var(--wrap-w)); margin-inline:auto; padding:32px 18px 0 } /* top space for titles */
 @media (max-width:1100px){ .wrap{ width:min(94vw, var(--wrap-max)) } }
-@media (max-width:640px){ .wrap{ width:96vw; padding:0 12px } }
+@media (max-width:640px){ .wrap{ width:96vw; padding:24px 12px 0 } }
 
 /* Header */
 .headerbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
@@ -139,14 +139,32 @@ body::before{
 
 /* Forms */
 label{display:block;font-size:13px;color:var(--muted);margin:8px 0}
+
+/* Ensure inputs & placeholders use Open Sans */
 textarea,input,select{
-  width:100%; background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
-  color:var(--ink); border:1px solid var(--line-soft); border-radius:14px;
-  padding:13px 14px; font-size:14px; outline:none;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.03); transition:box-shadow .2s,border-color .2s;
+  width:100%;
+  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+  color:var(--ink);
+  border:1px solid var(--line-soft);
+  border-radius:14px;
+  padding:13px 14px;
+  font-size:14px;
+  outline:none;
+  font-family:"Open Sans Var","Open Sans",Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+  transition:box-shadow .2s,border-color .2s;
 }
 textarea{min-height:120px;resize:vertical}
 textarea:focus,input:focus{ border-color:var(--line); box-shadow:0 0 0 3px rgba(79,141,253,.22) }
+
+/* Placeholder typography + color */
+textarea::placeholder,
+input::placeholder{
+  font-family:"Open Sans Var","Open Sans",Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  font-weight:400;
+  color:var(--muted);
+  opacity:1; /* Firefox */
+}
 
 /* Dropzone */
 .drop{position:relative;border:1px dashed var(--line-soft);border-radius:18px;overflow:hidden;min-height:220px;background:linear-gradient(180deg, var(--glass1), var(--glass2))}
@@ -154,26 +172,28 @@ textarea:focus,input:focus{ border-color:var(--line); box-shadow:0 0 0 3px rgba(
 .drop img.preview{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .drop .drop-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#d5dcf8;font-weight:600;font-size:13px}
 
-/* Buttons (BLUE) */
+/* Buttons (BLUE) — semi-bold & slightly smaller text */
 button,.btn{
   background:
     radial-gradient(100% 100% at 60% 0%, rgba(255,255,255,.22), transparent 40%),
     linear-gradient(180deg, var(--blue), var(--blue-2));
   color:white; border:1px solid rgba(26,83,217,.9); border-radius:14px;
-  padding:12px 16px; font-weight:800; font-size:14px; cursor:pointer;
+  padding:12px 16px; font-weight:600; font-size:13px; cursor:pointer; /* 600 = semi-bold, 13px smaller */
   transition:transform var(--fast) var(--ease), filter var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
   box-shadow:0 14px 40px rgba(37,115,255,.28), inset 0 1px 0 rgba(255,255,255,.14);
+  font-family:"Open Sans Var","Open Sans",Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
 }
 button:hover{ filter:brightness(1.06) } button:active{ transform:translateY(1px) }
 .btn-ghost{
   background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
   border:1px solid var(--line-soft); color:#d7dbff; box-shadow:none;
+  font-weight:600; font-size:13px;
+  font-family:"Open Sans Var","Open Sans",Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
 }
 button:disabled{ opacity:.6; cursor:not-allowed }
 
 .pill{ display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;
   background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)); border:1px solid var(--line-soft); color:#c7ceed; font-size:12px; font-weight:700 }
-.badge{ font-size:12px;padding:6px 10px;border-radius:999px;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border:1px solid var(--line-soft); color:#b8c0d9 }
 
 /* Results */
 .result-card{margin-bottom:12px}
@@ -188,9 +208,9 @@ button:disabled{ opacity:.6; cursor:not-allowed }
 .table table{width:100%;border-collapse:collapse;font-size:13px}
 .table th,.table td{padding:10px;border-bottom:1px solid var(--line-soft)} .table th{text-align:left;color:#c8d0ee;font-weight:700}
 
-/* Footer */
+/* Footer pinned to bottom visually on short pages */
 .site-footer{
-  margin-top:24px;padding:20px 12px;text-align:center;color:#a8b0c9;font-size:12px;
+  margin-top:auto;padding:20px 12px;text-align:center;color:#a8b0c9;font-size:12px;
   border-top:1px solid var(--line-soft);
   background:linear-gradient(180deg, var(--glass1), var(--glass2));
   border-radius:18px;

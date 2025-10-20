@@ -74,7 +74,7 @@ export const HTML = [
             "</div>",
             "<div class='row' style='margin-top:12px'>",
               "<button id='generate' class='btn'>Generate</button>",
-              "<button id='enhance' class='btn-ghost' style='margin-left:8px'>Enhance prompt</button>",
+              "<button id='enhance' class='btn-ghost' style='margin-left:8px'>Enhance text</button>",
             "</div>",
           "</div>",
 

@@ -10,8 +10,11 @@ const INLINE_LOGO = `
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-  "<title>Sequence Five — Usage</title>",
+  "<link rel='preconnect' href='https://fonts.googleapis.com'>",
+  "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>",
   "<link href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;600&display=swap' rel='stylesheet'>",
+  "<title>Sequence Five — Usage</title>",
+  "<link rel='icon' href='/images/app-logo.svg'/>",
   "<style>",
   BASE_STYLES,
   `
@@ -156,6 +159,7 @@ export const HTML = [
     "</main>",
   "</div>",
 
+  "<script src='https://cdn.jsdelivr.net/npm/chart.js'></script>",
   "<script src='/assets/dashboard.js'></script>",
   "</body></html>"
 ].join("");
