@@ -22,44 +22,7 @@ router.post("/api/enhance", async (req, res) => {
   }
 });
 
-/* ---------- SSE-ish Enhancer (single frame) ---------- */
-router.post("/api/enhance/stream", async (req, res) => {
-  try {
-    const { prompt, systemPrompt } = req.body || {};
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
-    if (!prompt || typeof prompt !== "string") {
-      res.write(`data: ${JSON.stringify({ error: "Missing prompt" })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      return res.end();
-    }
-
-    try {
-      const { text } = await enhancePrompt({ userText: prompt, systemPrompt });
-      res.write(`data: ${JSON.stringify({ output_text: text })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      return res.end();
-    } catch (err) {
-      const msg = err?.message || String(err);
-      res.write(`data: ${JSON.stringify({ error: msg, code: "gemini_error" })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      return res.end();
-    }
-  } catch (e) {
-    const msg = e?.message || String(e);
-    console.error("enhance/stream error:", msg);
-    try {
-      res.write(`data: ${JSON.stringify({ error: msg, code: "enhance_stream_failed" })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      res.end();
-    } catch { /* ignore */ }
-  }
-});
-
-/* ---------- NEW unified generate-image ---------- */
+/* ---------- Unified generate-image ---------- */
 router.post("/api/generate-image", async (req, res) => {
   try {
     const { prompt, image, systemPrompt, enhancedPrompt } = req.body || {};
@@ -128,88 +91,7 @@ router.post("/api/generate-image", async (req, res) => {
   }
 });
 
-/* ---------- Legacy endpoints kept (OK to remove later if you want) ---------- */
-router.post("/api/generate", async (req, res) => {
-  try {
-    const { prompt, systemPrompt, enhancedPrompt } = req.body || {};
-    if (!prompt || typeof prompt !== "string") return res.status(400).json({ error: "Missing prompt" });
-
-    let enhanced = enhancedPrompt;
-    let modelUsed = "client-provided (pre-enhanced)";
-    if (!enhanced) {
-      const out = await enhancePrompt({ userText: prompt, systemPrompt });
-      enhanced = out.text;
-      modelUsed = out.modelUsed;
-    }
-
-    const { mimeType, base64 } = await generateFromText(enhanced);
-    const { galleryUrl, id } = await saveImageAndRecord({
-      mimeType,
-      base64,
-      prompt,
-      enhancedPrompt: enhanced,
-      modelUsed,
-      type: "T2I"
-    });
-
-    res.json({
-      enhancedPrompt: enhanced,
-      openaiModelUsed: modelUsed,
-      mimeType,
-      imageBase64: base64,
-      galleryUrl,
-      id
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message || String(e) });
-  }
-});
-router.get("/api/generate", (_req, res) =>
-  res.status(405).json({ error: "Use POST for /api/generate" })
-);
-
-router.post("/api/img2img", async (req, res) => {
-  try {
-    const { prompt, image } = req.body || {};
-    if (!image || !image.dataUrl || typeof image.dataUrl !== "string")
-      return res.status(400).json({ error: "Missing base image (dataUrl)" });
-    if (!prompt || typeof prompt !== "string")
-      return res.status(400).json({ error: "Missing prompt" });
-
-    const combined = "Show me " + prompt.trim();
-    const m = image.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!m) return res.status(400).json({ error: "Invalid dataUrl" });
-    const baseMime = m[1];
-    const base64Data = m[2];
-
-    const { mimeType, base64 } = await generateFromImage(baseMime, base64Data, combined);
-
-    const modelUsed = "no-llm (prefix-only)";
-    const { galleryUrl, id } = await saveImageAndRecord({
-      mimeType,
-      base64,
-      prompt: combined,
-      enhancedPrompt: combined,
-      modelUsed,
-      type: "I2I"
-    });
-
-    res.json({
-      enhancedPrompt: combined,
-      openaiModelUsed: "none",
-      mimeType,
-      imageBase64: base64,
-      galleryUrl,
-      id
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message || String(e) });
-  }
-});
-
-/* ---------- Gallery + Delete (unchanged) ---------- */
+/* ---------- Gallery + Delete ---------- */
 router.get("/api/gallery", async (req, res) => {
   try {
     const { db } = await import("../firebase.js");

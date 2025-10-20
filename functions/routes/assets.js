@@ -4,28 +4,11 @@ import { MAX_PARALLEL_GENERATIONS } from "../config.js";
 
 const router = Router();
 
-/* ---------- Tiny assets so we don't 404 ---------- */
+/* ---------- Inline SVG logo (asset fallback) ---------- */
 router.get("/images/app-logo.svg", (_req, res) => {
   res.type("image/svg+xml").send(`
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sequence Five">
-  <defs>
-    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#A78BFA"/>
-      <stop offset="1" stop-color="#22D3EE"/>
-    </linearGradient>
-    <radialGradient id="g2" cx="50%" cy="0%" r="100%">
-      <stop offset="0" stop-color="rgba(255,255,255,.85)"/>
-      <stop offset="1" stop-color="rgba(255,255,255,0)"/>
-    </radialGradient>
-  </defs>
-  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#g1)" />
-  <circle cx="164" cy="164" r="58" fill="white" fill-opacity=".15"/>
-  <circle cx="348" cy="164" r="58" fill="white" fill-opacity=".22"/>
-  <circle cx="348" cy="348" r="58" fill="white" fill-opacity=".18"/>
-  <circle cx="164" cy="348" r="58" fill="white" fill-opacity=".10"/>
-  <path d="M128 256h256" stroke="white" stroke-opacity=".55" stroke-width="18" stroke-linecap="round"/>
-  <path d="M256 128v256" stroke="white" stroke-opacity=".35" stroke-width="18" stroke-linecap="round"/>
-  <circle cx="256" cy="256" r="140" fill="url(#g2)" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" fill="#fff" aria-label="Sequence Five Logo" role="img">
+  <path d="M188.42 274.96a3.14 3.14 0 0 0-.23-4.34c-.39-.31-.85-.62-1.4-.7l-67.49-21.95c-2.33-.78-3.65-3.26-2.87-5.66l19.7-60.74c.78-2.33 3.26-3.65 5.66-2.87h0l7.52 2.4-21.95-96.35-17.3-10.39c-53.67 42.58-84.93 107.2-85.08 175.7v.47c0 3.8.08 7.6.31 11.4v.31c.85 16.52 3.57 32.89 8.07 48.79l120.86 11.09 34.21-47.09h0v-.08zM391.51 75.67l-105.03 63.07v58.72c-.16 1.71 1.09 3.18 2.72 3.34.54 0 1.01 0 1.55-.23l67.49-21.95c2.33-.78 4.89.54 5.66 2.87h0l19.7 60.74c.78 2.33-.54 4.89-2.87 5.66l-7.21 2.33 74.08 64.54 18.54-1.71c4.81-16.76 7.68-33.98 8.61-51.35v-.54c.16-3.57.23-7.21.23-10.78v-.47a224.59 224.59 0 0 0-83.39-174.38l-.08.16zM252.65 317.86c-.85-1.47-2.72-1.94-4.19-1.09-.47.23-.85.62-1.09 1.09l-41.73 57.4c-1.47 2.02-4.27 2.48-6.28 1.01h0l-51.66-37.55c-2.02-1.47-2.48-4.27-1.01-6.28h0l4.73-6.59-98.05-9-14.2 12.33c30.8 82.46 108.45 141.96 200.6 146.07l47.16-110.23-34.29-47.16zm60.51-47.94c-1.63.39-2.72 2.02-2.33 3.72.08.47.31.93.7 1.32l41.73 57.4c1.47 2.02 1.01 4.81-1.01 6.28h0l-51.66 37.55c-2.02 1.47-4.81 1.01-6.28-1.01h0l-4.65-6.44-38.55 90.29 6.98 16.29c92.31-3.26 170.51-62.21 202-144.29l-91.07-79.36-55.77 18.15-.08.08zm-103.87-69.28c1.55.7 3.34 0 4.03-1.63.23-.47.31-1.01.23-1.55v-70.98a4.51 4.51 0 0 1 4.5-4.5h63.92a4.51 4.51 0 0 1 4.5 4.5v7.6l84.48-50.73 4.5-19.63c-75.17-50.5-173.38-50.97-249.01-1.16l27.38 120.01 55.54 18h0l-.08.08z"/>
 </svg>
   `.trim());
 });
@@ -33,7 +16,12 @@ router.get("/images/app-logo.svg", (_req, res) => {
 // Avoid favicon noise
 router.get("/favicon.ico", (_req, res) => res.status(204).end());
 
-/* ---------- Modal CSS used by "Add to Storyboard" picker ---------- */
+/* ---------- Inline SVGs for small icon buttons (no borders) ---------- */
+const SVG_DOWNLOAD = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+const SVG_ADD      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
+const SVG_DELETE   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
+
+/* ---------- Storyboard add modal CSS ---------- */
 const MODAL_CSS = `
 .nb-modal-backdrop{position:fixed;inset:0;background:rgba(6,8,18,.58);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:10002}
 .nb-modal{
@@ -54,13 +42,7 @@ const MODAL_CSS = `
 .nb-close{margin-top:12px;display:flex;justify-content:flex-end}
 `;
 
-/* ---------- Inline SVGs ---------- */
-const SVG_DOWNLOAD = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
-const SVG_ADD      = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
-const SVG_DELETE   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
-const SVG_CLOSE    = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-
-/* ---------- Shared: fullscreen viewer CSS & helpers ---------- */
+/* ---------- Shared fullscreen viewer CSS & helpers (no close button) ---------- */
 function sharedViewerCssJs() {
   const css = `
   (function(){
@@ -72,9 +54,8 @@ function sharedViewerCssJs() {
       + ".viewer-img{max-width:92vw;max-height:92vh;border-radius:18px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);transition:filter .18s ease;display:block}"
       + ".viewer-backdrop.blurred .viewer-img{filter:blur(10px) brightness(.65)}"
       + ".viewer-bottombar{position:absolute;right:12px;bottom:12px;display:flex;gap:6px;align-items:center}"
-      + ".viewer-close{width:34px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}"
       + ".viewer-actions{display:flex;gap:6px;align-items:center}"
-      + ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:none;background:transparent;padding:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff}"
+      + ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;background:transparent;padding:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff}"
       + ".icon-btn[disabled]{opacity:.5;cursor:not-allowed}"
       + ".icon-btn:hover{filter:brightness(1.08)}"
       + ".icon-btn:active{transform:translateY(1px)}"
@@ -202,13 +183,10 @@ function sharedViewerCssJs() {
       });
     } else { bDel.disabled = true; }
 
-    var close = document.createElement('button'); close.className='viewer-close'; close.innerHTML = ${JSON.stringify(SVG_CLOSE)};
-
     actions.appendChild(aDown);
     actions.appendChild(bAdd);
     actions.appendChild(bDel);
     bottombar.appendChild(actions);
-    bottombar.appendChild(close);
 
     wrap.appendChild(img);
     wrap.appendChild(bottombar);
@@ -219,7 +197,6 @@ function sharedViewerCssJs() {
     function closeViewer(){ if(back.parentNode){ back.parentNode.removeChild(back); document.body.style.overflow=prevOverflow; document.removeEventListener('keydown', onKey); } }
     function onKey(e){ if(e.key==='Escape') closeViewer(); }
     back.addEventListener('click', function(e){ if(e.target===back) closeViewer(); });
-    close.addEventListener('click', closeViewer);
     document.addEventListener('keydown', onKey);
 
     window.__closeViewer = closeViewer;
@@ -233,13 +210,27 @@ router.get("/assets/gallery.js", (_req, res) => {
   const shared = sharedViewerCssJs();
   res.type("application/javascript").send(`(function(){
     function byId(id){ return document.getElementById(id); }
+    function toShortDateTime(iso){
+      try{
+        var d = new Date(iso);
+        return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      }catch(_){ return iso || ''; }
+    }
 
     ${shared.css}
     ${shared.helpers}
 
     var grid = null, nextCursor = null, loading = false, ended = false;
+    var sentinel = null;
+    var io = null;
 
-    var io = new IntersectionObserver(function(entries){
+    // Ensure exactly 4 columns via CSS class hook (the page styles handle responsiveness)
+    function ensureFourCols(){
+      if(!grid) return;
+      grid.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
+    }
+
+    var observer = new IntersectionObserver(function(entries){
       entries.forEach(function(entry){
         if(entry.isIntersecting){
           var img = entry.target;
@@ -252,7 +243,7 @@ router.get("/assets/gallery.js", (_req, res) => {
           var hi = new Image(); hi.decoding='async';
           hi.onload=function(){ img.src = full || thumb; img.classList.add('is-loaded'); };
           hi.src = full || thumb;
-          io.unobserve(img);
+          observer.unobserve(img);
         }
       });
     }, { rootMargin: '200px 0px' });
@@ -268,13 +259,12 @@ router.get("/assets/gallery.js", (_req, res) => {
         hi.onload=function(){ imgEl.src=fullSrc||thumbSrc; imgEl.classList.add('is-loaded'); };
         hi.src=fullSrc||thumbSrc;
       }else{
-        imgEl.setAttribute('loading','lazy'); imgEl.setAttribute('decoding','async'); imgEl.setAttribute('fetchpriority','low'); io.observe(imgEl);
+        imgEl.setAttribute('loading','lazy'); imgEl.setAttribute('decoding','async'); imgEl.setAttribute('fetchpriority','low'); observer.observe(imgEl);
       }
     }
 
     function buildCard(item, idx){
       var card = document.createElement('div'); card.className='card-gal';
-
       var media = document.createElement('div'); media.className='media';
       media.style.position='relative';
       media.style.aspectRatio='16 / 9';
@@ -295,7 +285,7 @@ router.get("/assets/gallery.js", (_req, res) => {
 
       var overlay = document.createElement('div'); overlay.className = 'gal-overlay';
       var meta = document.createElement('div'); meta.className='gal-meta';
-      var dt = document.createElement('span'); dt.textContent = (item.createdAt ? new Date(item.createdAt).toLocaleString() : '');
+      var dt = document.createElement('span'); dt.textContent = (item.createdAt ? toShortDateTime(item.createdAt) : '');
       meta.appendChild(dt);
       var pill = document.createElement('span'); pill.className='type-pill'; pill.textContent = (item.type || '').toString() || '—';
       meta.appendChild(pill);
@@ -350,6 +340,7 @@ router.get("/assets/gallery.js", (_req, res) => {
         const items = data.items || [];
         if(!items.length){
           ended = true;
+          sentinel && sentinel.remove();
           return;
         }
         const frag = document.createDocumentFragment();
@@ -359,8 +350,8 @@ router.get("/assets/gallery.js", (_req, res) => {
         }
         grid.appendChild(frag);
         nextCursor = data.nextCursor || null;
-        if(!nextCursor) ended = true;
-        byId('empty').style.display = grid.children.length ? 'none' : 'block';
+        if(!nextCursor){ ended = true; sentinel && sentinel.remove(); }
+        byId('empty') && (byId('empty').style.display = grid.children.length ? 'none' : 'block');
       }catch(e){
         console.error(e);
       }finally{
@@ -371,25 +362,27 @@ router.get("/assets/gallery.js", (_req, res) => {
     function resetAndLoad(){
       grid.innerHTML = '';
       nextCursor = null; ended = false; loading = false;
-      byId('empty').style.display = 'none';
-      loadMore();
+      byId('empty') && (byId('empty').style.display = 'none');
+      ensureFourCols();
+      loadMore(); // kick first page
     }
 
     function setUpInfiniteScroll(){
-      const sentinel = byId('sentinel');
+      sentinel = byId('sentinel');
       if(!sentinel) return;
-      const observer = new IntersectionObserver((entries) => {
+      if(io) { try{ io.disconnect(); }catch(_){ } }
+      io = new IntersectionObserver((entries) => {
         entries.forEach((en)=>{
           if(en.isIntersecting) loadMore();
         });
       }, { rootMargin: '800px 0px' });
-      observer.observe(sentinel);
+      io.observe(sentinel);
     }
 
     grid = byId('grid');
     if(!grid) return;
     const refresh = byId('refresh');
-    if(refresh) refresh.addEventListener('click', resetAndLoad);
+    if(refresh) refresh.addEventListener('click', function(){ resetAndLoad(); setUpInfiniteScroll(); });
 
     resetAndLoad();
     setUpInfiniteScroll();
@@ -402,12 +395,13 @@ router.get("/assets/generator.js", (_req, res) => {
   const shared = sharedViewerCssJs();
   res.type("application/javascript").send(`(function(){
     function g(id){ return document.getElementById(id); }
+    function toShortDateTime(d){ return new Date(d).toLocaleString(undefined,{ dateStyle:'medium', timeStyle:'short' }); }
 
     ${shared.css}
     ${shared.helpers}
 
     var active = 0, limit = ${MAX};
-    var dataUrl = null; // base image data URL (no auto-orient)
+    var dataUrl = null; // base image data URL
     var rawFile = null;
 
     // Elements
@@ -440,7 +434,7 @@ router.get("/assets/generator.js", (_req, res) => {
       btnEnh.title = enabled ? '' : 'Disabled when a base image is attached';
     }
 
-    /* ===== Upload helpers (NO auto-orient) ===== */
+    /* ===== Upload helpers ===== */
     function setMeta(text, kind){
       if(!metaLine) return;
       metaLine.textContent = text || '';
@@ -461,11 +455,11 @@ router.get("/assets/generator.js", (_req, res) => {
     }
     function clearPreview(){
       dataUrl = null; rawFile = null; setMeta(''); showProcessing(false);
-      if(dropInner){ dropInner.innerHTML = '<div class="circle">🖼️</div><div>Upload base image (optional)</div>'; }
+      if(dropInner){ dropInner.innerHTML = '<div class="drop-txt">Upload base image (optional)</div>'; }
       if(removeBtn) removeBtn.style.display = 'none';
       var prev = drop ? drop.querySelector('img.preview') : null;
       if(prev && prev.parentNode) prev.parentNode.removeChild(prev);
-      setEnhEnabled(true); // re-enable enhancer
+      setEnhEnabled(true);
     }
     function setPreview(url){
       if(!drop) return;
@@ -479,14 +473,14 @@ router.get("/assets/generator.js", (_req, res) => {
       }
       img.src = url;
       if(removeBtn) removeBtn.style.display = 'inline-flex';
-      setEnhEnabled(false); // disable enhancer when we have an image
+      setEnhEnabled(false);
     }
     function loadImageURL(url){
       return new Promise(function(resolve, reject){
         var img = new Image();
         img.onload = function(){ resolve(img); };
         img.onerror = reject;
-        img.src = url; // No EXIF/auto-orient correction
+        img.src = url;
       });
     }
     async function transcodeToDataURL(file, opts){
@@ -503,7 +497,6 @@ router.get("/assets/generator.js", (_req, res) => {
         var ctx = c.getContext('2d', { alpha:false, desynchronized:true });
         ctx.fillStyle = '#000'; ctx.fillRect(0,0,outW,outH);
         ctx.drawImage(bmp, 0, 0, outW, outH);
-        // Prefer webp if available, else jpeg
         var tryWebp = c.toDataURL('image/webp');
         var useWebp = (typeof tryWebp === 'string') && tryWebp.indexOf('data:image/webp') === 0;
         var mime = useWebp ? 'image/webp' : 'image/jpeg';
@@ -535,42 +528,21 @@ router.get("/assets/generator.js", (_req, res) => {
       }catch(e){ setMeta('Failed to process image.', 'error'); clearPreview(); console.error(e); }
     }
 
-    // Hide the native file input to prevent it blocking clicks and to avoid double dialog
     if(fileInput){ fileInput.style.display = 'none'; }
-
-    // Make the whole drop area open the file dialog (single source of truth)
     if(drop){
       drop.tabIndex = 0; drop.setAttribute('role','button'); drop.setAttribute('aria-label','Upload base image');
-      drop.addEventListener('click', function(e){
-        if(fileInput){ fileInput.click(); }
-      });
-      drop.addEventListener('keydown', function(e){
-        if(e.key === 'Enter' || e.key === ' '){
-          e.preventDefault();
-          if(fileInput){ fileInput.click(); }
-        }
-      });
-      // Drag & drop
+      drop.addEventListener('click', function(){ if(fileInput){ fileInput.click(); } });
+      drop.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); if(fileInput){ fileInput.click(); } } });
       ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('is-drag'); }); });
       ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('is-drag'); }); });
       drop.addEventListener('drop', function(e){ var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) handleOptimizedFile(f); });
     }
-
-    // File input change handler (single path)
-    if(fileInput){
-      fileInput.addEventListener('change', function(){
-        var f = this.files && this.files[0];
-        if(f) handleOptimizedFile(f);
-      });
-    }
-
-    // Paste support
+    if(fileInput){ fileInput.addEventListener('change', function(){ var f = this.files && this.files[0]; if(f) handleOptimizedFile(f); }); }
     document.addEventListener('paste', function(e){
       if(!drop) return;
       var items = e.clipboardData && e.clipboardData.items; if(!items) return;
       for(var i=0;i<items.length;i++){ var it = items[i]; if(it.kind === 'file'){ var f = it.getAsFile(); if(f && /^image\\//i.test(f.type)){ handleOptimizedFile(f); break; } } }
     });
-
     if(removeBtn){ removeBtn.addEventListener('click', function(e){ e.stopPropagation(); clearPreview(); }); removeBtn.style.display = 'none'; }
 
     /* ===== Results & generation ===== */
@@ -579,11 +551,13 @@ router.get("/assets/generator.js", (_req, res) => {
       if(!results) return null;
       var card = document.createElement('div'); card.className='result-card';
       var media = document.createElement('div'); media.className='result-media';
-      media.style.aspectRatio = '16 / 9'; // keep 16:9 box
+      media.style.position='relative';
+      media.style.aspectRatio = '16 / 9';
       var skel = document.createElement('div'); skel.className='skeleton';
       var spinner = document.createElement('div'); spinner.className='spinner-lg';
       skel.appendChild(spinner); media.appendChild(skel);
       var img = document.createElement('img'); img.alt='generated image'; img.style.display='none';
+      img.style.position='absolute'; img.style.inset='0'; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='zoom-in';
       media.appendChild(img);
       card.appendChild(media); results.prepend(card);
       return { card: card, media: media, img: img, skel: skel };
@@ -591,26 +565,10 @@ router.get("/assets/generator.js", (_req, res) => {
 
     async function enhancePrompt(seed){
       try{
-        var r = await fetch('/api/enhance/stream', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: seed }) });
-        if(!r.ok || !r.body){
-          var alt = await fetch('/api/enhance', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: seed }) });
-          var jj = await alt.json().catch(function(){ return {}; });
-          if(alt.ok && jj.enhancedPrompt) return jj.enhancedPrompt;
-          throw new Error(jj.error || 'Enhance failed');
-        }
-        var text = await r.text();
-        var parts = text.split("\\n\\n").map(function(s){ return s.trim(); }).filter(function(s){ return s.length; });
-        for(var i=parts.length-1;i>=0;i--){
-          var l = parts[i];
-          if(l.indexOf('data:') === 0){
-            var jsonStr = l.slice(5).trim();
-            try{
-              var obj = JSON.parse(jsonStr);
-              if(obj && typeof obj.output_text === 'string') return obj.output_text;
-            }catch(_){}
-          }
-        }
-        throw new Error('No enhance text');
+        var r = await fetch('/api/enhance', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: seed }) });
+        var jj = await r.json().catch(function(){ return {}; });
+        if(r.ok && jj.enhancedPrompt) return jj.enhancedPrompt;
+        throw new Error(jj.error || 'Enhance failed');
       }catch(e){ throw e; }
     }
 
@@ -622,18 +580,8 @@ router.get("/assets/generator.js", (_req, res) => {
         if(!r.ok) throw new Error(j.error || 'Generate failed');
         return j;
       }catch(e){
-        // Fallback to legacy endpoints
-        if(baseImage){
-          var r1 = await fetch('/api/img2img', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: prompt, image: { dataUrl: baseImage } }) });
-          var j1 = await r1.json().catch(function(){ return {}; });
-          if(!r1.ok) throw new Error(j1.error || 'Generate (img2img) failed');
-          return j1;
-        } else {
-          var r2 = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: prompt, enhancedPrompt: prompt }) });
-          var j2 = await r2.json().catch(function(){ return {}; });
-          if(!r2.ok) throw new Error(j2.error || 'Generate (t2i) failed');
-          return j2;
-        }
+        // yes-fail: no fallback, surface error
+        throw e;
       }
     }
 
@@ -647,8 +595,50 @@ router.get("/assets/generator.js", (_req, res) => {
           var enhanced = await enhancePrompt(seed);
           promptEl.value = enhanced || seed;
         }catch(e){ alert(e.message || e); }
-        finally{ setEnhEnabled(!dataUrl); btnEnh.textContent = old; }
+        finally{ setEnhEnabled(!dataUrl); btnEnh.textContent = old; btnEnh.disabled = false; }
       });
+    }
+
+    function attachOverlayToResult(imgEl, imageId, dataUrlSrc){
+      var media = imgEl.parentElement;
+      var overlay = document.createElement('div'); overlay.className='gal-overlay';
+      var meta = document.createElement('div'); meta.className='gal-meta';
+      var dt = document.createElement('span'); dt.textContent = toShortDateTime(Date.now());
+      meta.appendChild(dt);
+      var pill = document.createElement('span'); pill.className='type-pill'; pill.textContent = dataUrl ? 'I2I' : 'T2I';
+      meta.appendChild(pill);
+      var actions = document.createElement('div'); actions.className='gal-actions';
+
+      var btnDownload = document.createElement('button'); btnDownload.className='icon-btn'; btnDownload.title='Download'; btnDownload.innerHTML = ${JSON.stringify(SVG_DOWNLOAD)};
+      btnDownload.addEventListener('click', function(e){ e.stopPropagation(); forceDownload(dataUrlSrc); });
+
+      var btnAdd = document.createElement('button'); btnAdd.className='icon-btn'; btnAdd.title='Add to Storyboard'; btnAdd.innerHTML = ${JSON.stringify(SVG_ADD)};
+      if(imageId){ btnAdd.addEventListener('click', function(e){ e.stopPropagation(); openPicker(imageId); }); } else { btnAdd.disabled = true; }
+
+      var btnDel = document.createElement('button'); btnDel.className='icon-btn'; btnDel.title='Delete'; btnDel.innerHTML = ${JSON.stringify(SVG_DELETE)};
+      if(imageId){
+        btnDel.addEventListener('click', async function(e){
+          e.stopPropagation();
+          if(!confirm('Delete this image everywhere? This cannot be undone.')) return;
+          btnDel.disabled = true;
+          try{
+            var r = await fetch('/api/image/delete',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ imageId }) });
+            var j = await r.json(); if(!r.ok) throw new Error(j.error || 'Failed');
+            var cardEl = media.closest('.result-card');
+            if(cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+          }catch(err){ alert(err.message || err); btnDel.disabled = false; }
+        });
+      } else { btnDel.disabled = true; }
+
+      actions.appendChild(btnDownload);
+      actions.appendChild(btnAdd);
+      actions.appendChild(btnDel);
+
+      overlay.appendChild(meta);
+      overlay.appendChild(actions);
+      overlay.addEventListener('click', function(e){ e.stopPropagation(); });
+
+      media.appendChild(overlay);
     }
 
     if(btnGen && promptEl){
@@ -664,9 +654,13 @@ router.get("/assets/generator.js", (_req, res) => {
             if(!ui) return;
             if(res && res.imageBase64 && res.mimeType){
               var url = 'data:' + res.mimeType + ';base64,' + res.imageBase64;
-              ui.img.style.display = 'block'; ui.img.src = url; ui.img.dataset.imageId = res.id || '';
-              if(ui.skel && ui.skel.parentNode) ui.skel.parentNode.removeChild(ui.skel);
-              ui.img.style.cursor = 'zoom-in';
+              // reveal image, then attach overlay (only after image is shown)
+              ui.img.onload = function(){
+                if(ui.skel && ui.skel.parentNode) ui.skel.parentNode.removeChild(ui.skel);
+                ui.img.style.display = 'block';
+                attachOverlayToResult(ui.img, res.id || null, url);
+              };
+              ui.img.src = url;
               ui.img.addEventListener('click', function(){
                 openViewerWithActions({
                   url: url,
@@ -693,9 +687,252 @@ router.get("/assets/generator.js", (_req, res) => {
   })();`);
 });
 
-/* dashboard placeholder */
+/* ======================= DASHBOARD (dashboard.js) ======================= */
 router.get("/assets/dashboard.js", (_req, res) => {
-  res.type("application/javascript").send(`(function(){ /* dashboard placeholder */ })();`);
+  res.type("application/javascript").send(`(function(){
+    // ---------- Helpers ----------
+    function qs(s, el){ return (el||document).querySelector(s); }
+    function qsa(s, el){ return Array.prototype.slice.call((el||document).querySelectorAll(s)); }
+    function fmtEUR(n){ try{ return new Intl.NumberFormat(undefined,{ style:'currency', currency:'EUR' }).format(n||0); }catch(_){ return '€'+(n||0).toFixed(2); } }
+    function euro(nUsd){ var rate = (typeof window.__EUR_RATE === 'number' && window.__EUR_RATE > 0) ? window.__EUR_RATE : 0.92; return (nUsd||0)*rate; }
+
+    function fmtLocalDate(d){
+      var y = d.getFullYear();
+      var m = String(d.getMonth()+1).padStart(2,'0');
+      var day = String(d.getDate()).padStart(2,'0');
+      return y + '-' + m + '-' + day;
+    }
+    function startOfDayLocal(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0); }
+    function endOfDayLocal(d){   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999); }
+    function addDaysLocal(d,n){  return new Date(d.getFullYear(), d.getMonth(), d.getDate()+n, d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds()); }
+    function firstOfMonthLocal(d){ return new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0); }
+    function jan1Local(d){ return new Date(d.getFullYear(), 0, 1, 0,0,0,0); }
+
+    // ---------- DOM ----------
+    var kpiTotal = qs('#kpiTotal');
+    var kpiText  = qs('#kpiText');
+    var kpiImage = qs('#kpiImage');
+    var tableWrap = qs('#table');
+    var fromEl = qs('#from');
+    var toEl   = qs('#to');
+    var apply  = qs('#apply');
+
+    var dailyChart = null;
+    var usageChart = null;
+
+    function loadChartJs(){
+      return new Promise(function(resolve, reject){
+        if(window.Chart){ resolve(); return; }
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        s.onload = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('Failed to load Chart.js')); };
+        document.head.appendChild(s);
+      });
+    }
+
+    async function fetchSummary(fromISO, toISO){
+      var qs_ = new URLSearchParams({ from: fromISO, to: toISO });
+      var r = await fetch('/api/billing/summary?' + qs_.toString());
+      var j = await r.json().catch(function(){ return {}; });
+      if(!r.ok) throw new Error(j.error || 'Failed to load summary');
+      return j;
+    }
+
+    function setRange(key){
+      var now = new Date();
+      var start, end;
+
+      if(key === 'today'){
+        start = startOfDayLocal(now);
+        end   = endOfDayLocal(now);
+      } else if(key === 'last7'){
+        end   = endOfDayLocal(now);
+        start = startOfDayLocal(addDaysLocal(now, -6));
+      } else if(key === 'month'){
+        start = firstOfMonthLocal(now);
+        end   = endOfDayLocal(now);
+      } else if(key === 'year'){
+        start = jan1Local(now);
+        end   = endOfDayLocal(now);
+      } else {
+        start = firstOfMonthLocal(now);
+        end   = endOfDayLocal(now);
+      }
+
+      fromEl.value = fmtLocalDate(start);
+      toEl.value   = fmtLocalDate(end);
+
+      qsa('.range-presets .pill').forEach(function(b){ b.classList.remove('active'); });
+      var btn = qs('.range-presets .pill[data-range="'+key+'"]');
+      if(btn) btn.classList.add('active');
+
+      loadAndRender();
+    }
+
+    function makeBlueGradient(ctx){
+      var g = ctx.createLinearGradient(0,0,0,ctx.canvas.height);
+      g.addColorStop(0, 'rgba(56,189,248,0.35)');
+      g.addColorStop(1, 'rgba(29,78,216,0.05)');
+      return g;
+    }
+    function makeBarBlueGradient(ctx, chartArea){
+      var g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+      g.addColorStop(0, 'rgba(56,189,248,0.55)');
+      g.addColorStop(1, 'rgba(29,78,216,0.15)');
+      return g;
+    }
+
+    function buildDailyChart(ctx, labels, eurTotals){
+      if(dailyChart){ try{ dailyChart.destroy(); }catch(_){ } }
+      var blue = '#3b82f6';
+      var gradient = makeBlueGradient(ctx);
+      dailyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Daily spend (€)',
+            data: eurTotals,
+            tension: 0.35,
+            borderColor: blue,
+            borderWidth: 2,
+            pointRadius: 2,
+            fill: true,
+            backgroundColor: gradient
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            x: { grid: { display:false }, ticks:{ color:'#cfd6f3' } },
+            y: { grid: { color: 'rgba(255,255,255,.08)' }, ticks:{ color:'#cfd6f3' }, beginAtZero:true }
+          },
+          animation: { duration: 300 }
+        }
+      });
+    }
+
+    function buildUsageTwoBars(ctx, imagesTotal, promptsTotal){
+      if(usageChart){ try{ usageChart.destroy(); }catch(_){ } }
+      usageChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Images', 'Prompts'],
+          datasets: [{
+            data: [imagesTotal, promptsTotal],
+            backgroundColor: function(context){
+              const { chart } = context;
+              const { ctx, chartArea } = chart;
+              if (!chartArea) return '#3b82f6';
+              return makeBarBlueGradient(ctx, chartArea);
+            },
+            borderColor: '#3b82f6',
+            borderWidth: 1.5,
+            borderRadius: 10,
+            barPercentage: 0.5,
+            categoryPercentage: 0.6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display:false },
+            tooltip: { mode:'index', intersect:false }
+          },
+          scales: {
+            x: { grid: { display:false }, ticks:{ color:'#cfd6f3' } },
+            y: { grid: { color:'rgba(255,255,255,.08)' }, ticks:{ color:'#cfd6f3', precision:0 }, beginAtZero:true }
+          },
+          animation: { duration: 300 }
+        }
+      });
+    }
+
+    function renderTable(days, eurByDay){
+      var html = '<div class="table"><table><thead><tr><th>Date</th><th>Total (€)</th><th>Images</th><th>Prompts</th></tr></thead><tbody>';
+      for(var i=0;i<days.length;i++){
+        var d = days[i];
+        var eur = eurByDay[i] || 0;
+        var images = (d.counts ? ((d.counts.t2i||0)+(d.counts.i2i||0)) : 0);
+        var prompts = (d.counts ? (d.counts.enhance||0) : 0);
+        html += '<tr><td>' + d.date + '</td><td>' + fmtEUR(eur) + '</td><td>' + images + '</td><td>' + prompts + '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+      tableWrap.innerHTML = html;
+    }
+
+    async function loadAndRender(){
+      try{
+        var f = fromEl.value; var t = toEl.value;
+        if(!f || !t){ throw new Error('Select a date range'); }
+        var data = await fetchSummary(f, t);
+
+        var totalEur = euro(data.totals && data.totals.grandTotalUsd);
+        var textEur  = 0;
+        var imageEur = 0;
+        if(Array.isArray(data.days)){
+          for(var i=0;i<data.days.length;i++){
+            var d = data.days[i];
+            var m = d.models || {};
+            var imgUsd = 0, txtUsd = 0;
+            Object.keys(m).forEach(function(k){
+              if(/flash-image/i.test(k)){ imgUsd += Number(m[k]||0); }
+              else { txtUsd += Number(m[k]||0); }
+            });
+            imageEur += euro(imgUsd);
+            textEur  += euro(txtUsd);
+          }
+        }
+        if(kpiTotal) kpiTotal.textContent = fmtEUR(totalEur||0);
+        if(kpiText)  kpiText.textContent  = fmtEUR(textEur||0);
+        if(kpiImage) kpiImage.textContent = fmtEUR(imageEur||0);
+
+        var labels = (data.days||[]).map(function(d){ return d.date; });
+        var eurByDay = (data.days||[]).map(function(d){ return euro(d.total||0); });
+
+        await loadChartJs();
+
+        var cDaily = qs('#cDaily');
+        if(cDaily){ buildDailyChart(cDaily.getContext('2d'), labels, eurByDay); }
+
+        var imagesTotal = 0, promptsTotal = 0;
+        if(data.counts){
+          imagesTotal = Number(data.counts.images||0);
+          promptsTotal = Number(data.counts.prompts||0);
+        } else if(Array.isArray(data.days)) {
+          for(var i=0;i<data.days.length;i++){
+            var c = data.days[i].counts || {};
+            imagesTotal += (c.t2i||0) + (c.i2i||0);
+            promptsTotal += (c.enhance||0);
+          }
+        }
+        var cUsage = qs('#cUsage');
+        if(cUsage){ buildUsageTwoBars(cUsage.getContext('2d'), imagesTotal, promptsTotal); }
+
+        renderTable(data.days||[], eurByDay);
+      }catch(e){
+        console.error(e);
+        if(tableWrap){ tableWrap.innerHTML = '<div class="hint">Failed to load: ' + (e.message||e) + '</div>'; }
+      }
+    }
+
+    qsa('.range-presets .pill').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var k = btn.getAttribute('data-range');
+        setRange(k);
+      });
+    });
+    if(apply){ apply.addEventListener('click', function(){ loadAndRender(); }); }
+
+    setRange('last7');
+  })();`);
 });
 
 export default router;

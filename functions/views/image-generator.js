@@ -11,7 +11,6 @@ export const HTML = [
   "<body>",
   "<div class='app'>",
 
-    // Sidebar (A2 — icon + text)
     "<aside class='sidebar'>",
       "<div class='nav-brand'>",
         "<div class='logo'><img src='/images/app-logo.svg' alt='Sequence Five logo'/></div>",
@@ -36,13 +35,12 @@ export const HTML = [
         "</a>",
         "<span class='sep'></span>",
         "<a href='#'>",
-          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/></svg>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/></svg>",
           "<span>Logout</span>",
         "</a>",
       "</nav>",
     "</aside>",
 
-    // Main
     "<main class='main'>",
       "<div class='wrap'>",
 
@@ -57,14 +55,10 @@ export const HTML = [
         "</div>",
 
         "<div class='grid'>",
-          // Left: inputs (kept fixed height feel; won’t grow with results)
           "<div class='card' style='align-self:start'>",
             "<div id='drop' class='drop frame' tabindex='0' role='button' aria-label='Upload base image'>",
               "<input id='file' type='file' accept='image/*' style='display:none'/>",
-              "<div id='dropInner' class='drop-inner'>",
-                "<div class='circle'>🖼️</div>",
-                "<div>Upload base image (optional)</div>",
-              "</div>",
+              "<div id='dropInner' class='drop-inner'>Upload base image (optional)</div>",
             "</div>",
             "<div style='display:flex;justify-content:space-between;align-items:center;margin-top:10px'>",
               "<div id='uploadMeta' class='hint'></div>",
@@ -81,11 +75,10 @@ export const HTML = [
             "</div>",
           "</div>",
 
-          // Right: results (one image per row, 16:9)
           "<div class='card'>",
             "<div class='row' style='justify-content:space-between'><strong>Results</strong></div>",
             "<div id='resultsGrid' style='margin-top:12px'></div>",
-            "<div id='empty' class='hint'>No results yet.</div>",
+            "<div id='empty' class='hint' style='font-size:12px'>No results yet.</div>",
           "</div>",
         "</div>",
 
