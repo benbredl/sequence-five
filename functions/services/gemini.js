@@ -1,3 +1,4 @@
+// functions/services/gemini.js
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const MODEL_ID = "gemini-2.5-flash-image";
 
@@ -19,7 +20,7 @@ async function callGemini(parts, { action }) {
     contents: [{ parts }],
     generationConfig: {
       responseModalities: ["Image"],
-      imageConfig: { aspectRatio: "16:9" } // ✅ always 16:9
+      imageConfig: { aspectRatio: "16:9" }
     }
   };
 
@@ -31,23 +32,20 @@ async function callGemini(parts, { action }) {
   const j = await r.json();
   if (!r.ok) throw new Error(j.error?.message || `Gemini API error (${r.status})`);
 
-  // Extract image
   const partsOut = j?.candidates?.[0]?.content?.parts || [];
-  const img = partsOut.find(p => p.inlineData || p.inline_data);
+  const img = partsOut.find((p) => p.inlineData || p.inline_data);
   const mimeType = img?.inlineData?.mimeType || img?.inline_data?.mimeType || "image/png";
   const data = (img?.inlineData?.data || img?.inline_data?.data || "").trim();
 
-  // Usage (telemetry; billing is per image, $/image)
   const usage = j?.usageMetadata || null;
 
-  // Record billing event
   const cost_usd = costGeminiPerImage({ images: 1 });
   await recordUsage({
     ts: new Date(),
     service: "gemini",
     action, // "t2i" | "i2i"
     model: MODEL_ID,
-    request_id: j?.candidates?.[0]?.safetyRatings ? null : null, // no stable request-id surfaced
+    request_id: null,
     usage,
     unit_prices: {
       gemini_image_per_image: Number(process.env.PRICE_GEMINI_IMAGE_PER_IMAGE_USD || 0.039)

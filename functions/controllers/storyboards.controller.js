@@ -1,47 +1,32 @@
-import { Router } from "express";
+// functions/controllers/storyboards.controller.js
 import { db } from "../firebase.js";
-
-const router = Router();
-
-/**
- * Firestore layout:
- *  - images/{imageId}                                   (already used by your app)
- *  - storyboards/{storyboardId} -> { title, description, createdAt }
- *  - storyboards/{storyboardId}/items/{imageId} -> { imageId, addedAt }
- *
- * Notes:
- *  - We use the imageId as the item doc id to prevent duplicates.
- *  - Aggregation count() is used to return item counts on list.
- */
+import { bad, err, ok } from "../utils/http.js";
 
 // Create storyboard
-router.post("/api/storyboards", async (req, res) => {
+export async function createStoryboard(req, res) {
   try {
     const { title, description } = req.body || {};
     if (!title || typeof title !== "string") {
-      return res.status(400).json({ error: "Missing title" });
+      return bad(res, "Missing title");
     }
     const doc = await db.collection("storyboards").add({
       title: title.trim(),
       description: (description || "").trim(),
       createdAt: new Date()
     });
-    return res.json({ id: doc.id });
+    return ok(res, { id: doc.id });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: e.message || String(e) });
+    return err(res, e);
   }
-});
+}
 
-// List storyboards (with item counts)
-router.get("/api/storyboards", async (_req, res) => {
+// List storyboards with counts
+export async function listStoryboards(_req, res) {
   try {
     const snap = await db.collection("storyboards").orderBy("createdAt", "desc").get();
     const storyboards = [];
-
     for (const doc of snap.docs) {
       const v = doc.data() || {};
-      // Firestore aggregation count (Admin SDK)
       const agg = await db
         .collection("storyboards")
         .doc(doc.id)
@@ -57,29 +42,26 @@ router.get("/api/storyboards", async (_req, res) => {
         itemCount: agg.data().count || 0
       });
     }
-
-    return res.json({ storyboards });
+    return ok(res, { storyboards });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: e.message || String(e) });
+    return err(res, e);
   }
-});
+}
 
-// Get a storyboard with items (joins basic image info incl. previews if present)
-router.get("/api/storyboard", async (req, res) => {
+// Get storyboard + items (with image joins)
+export async function getStoryboard(req, res) {
   try {
     const id = String(req.query.id || "").trim();
-    if (!id) return res.status(400).json({ error: "Missing storyboard id" });
+    if (!id) return bad(res, "Missing storyboard id");
 
     const sbRef = db.collection("storyboards").doc(id);
     const sbDoc = await sbRef.get();
-    if (!sbDoc.exists) return res.status(404).json({ error: "Storyboard not found" });
+    if (!sbDoc.exists) return err(res, new Error("Storyboard not found"), 404);
 
     const sb = sbDoc.data() || {};
     const itemsSnap = await sbRef.collection("items").orderBy("addedAt", "desc").get();
     const imageIds = itemsSnap.docs.map((d) => d.id);
 
-    // Batch-load image docs in small chunks
     const imagesById = {};
     if (imageIds.length) {
       for (let i = 0; i < imageIds.length; i += 10) {
@@ -102,7 +84,7 @@ router.get("/api/storyboard", async (req, res) => {
           ? itemData.addedAt.toDate().toISOString()
           : itemData.addedAt || null,
         url: img.url || null,
-        thumbUrl: img.thumbUrl || null, // may be null if previews not generated yet
+        thumbUrl: img.thumbUrl || null,
         tinyUrl: img.tinyUrl || null,
         enhancedPrompt: img.enhancedPrompt || null,
         modelUsed: img.modelUsed || null,
@@ -110,7 +92,7 @@ router.get("/api/storyboard", async (req, res) => {
       };
     });
 
-    return res.json({
+    return ok(res, {
       id,
       title: sb.title || "",
       description: sb.description || "",
@@ -118,86 +100,74 @@ router.get("/api/storyboard", async (req, res) => {
       items
     });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: e.message || String(e) });
+    return err(res, e);
   }
-});
+}
 
 // Add image to storyboard
-router.post("/api/storyboard/add", async (req, res) => {
+export async function addToStoryboard(req, res) {
   try {
     const { storyboardId, imageId } = req.body || {};
     if (!storyboardId || !imageId) {
-      return res.status(400).json({ error: "storyboardId and imageId required" });
+      return bad(res, "storyboardId and imageId required");
     }
 
-    // Ensure storyboard exists
     const sbRef = db.collection("storyboards").doc(String(storyboardId));
     const sbDoc = await sbRef.get();
-    if (!sbDoc.exists) return res.status(404).json({ error: "Storyboard not found" });
+    if (!sbDoc.exists) return err(res, new Error("Storyboard not found"), 404);
 
-    // Ensure image exists
     const imgRef = db.collection("images").doc(String(imageId));
     const imgDoc = await imgRef.get();
-    if (!imgDoc.exists) return res.status(404).json({ error: "Image not found" });
+    if (!imgDoc.exists) return err(res, new Error("Image not found"), 404);
 
-    // Upsert item (doc id == imageId prevents duplicates)
     await sbRef
       .collection("items")
       .doc(String(imageId))
       .set({ imageId: String(imageId), addedAt: new Date() }, { merge: true });
 
-    return res.json({ ok: true });
+    return ok(res, { ok: true });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: e.message || String(e) });
+    return err(res, e);
   }
-});
+}
 
 // Remove image from storyboard
-router.post("/api/storyboard/remove", async (req, res) => {
+export async function removeFromStoryboard(req, res) {
   try {
     const { storyboardId, imageId } = req.body || {};
     if (!storyboardId || !imageId) {
-      return res.status(400).json({ error: "storyboardId and imageId required" });
+      return bad(res, "storyboardId and imageId required");
     }
-
     const itemRef = db
       .collection("storyboards")
       .doc(String(storyboardId))
       .collection("items")
       .doc(String(imageId));
-
     await itemRef.delete();
-    return res.json({ ok: true });
+    return ok(res, { ok: true });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: e.message || String(e) });
+    return err(res, e);
   }
-});
+}
 
-// Delete storyboard (and its items)
-router.post("/api/storyboard/delete", async (req, res) => {
+// Delete storyboard and its items
+export async function deleteStoryboard(req, res) {
   try {
     const { storyboardId } = req.body || {};
-    if (!storyboardId) return res.status(400).json({ error: "storyboardId required" });
+    if (!storyboardId) return bad(res, "storyboardId required");
 
     const sbRef = db.collection("storyboards").doc(String(storyboardId));
     const sbDoc = await sbRef.get();
-    if (!sbDoc.exists) return res.status(404).json({ error: "Storyboard not found" });
+    if (!sbDoc.exists) return err(res, new Error("Storyboard not found"), 404);
 
-    // Delete all items then the storyboard document
     const itemsSnap = await sbRef.collection("items").get();
     const batch = db.batch();
     itemsSnap.forEach((d) => batch.delete(d.ref));
     batch.delete(sbRef);
     await batch.commit();
 
-    return res.json({ ok: true });
+    return ok(res, { ok: true });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: e.message || String(e) });
+    return err(res, e);
   }
-});
-
-export default router;
+}

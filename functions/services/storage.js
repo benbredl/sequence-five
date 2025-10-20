@@ -2,7 +2,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { db, bucket, FieldValueServer } from "../firebase.js";
 
-/* ---------- helpers ---------- */
 function extFromMime(m) {
   if (!m) return "png";
   if (m.includes("png")) return "png";
@@ -17,7 +16,7 @@ function yyyymmdd(date = new Date()) {
   return `${y}/${m}/${d}`;
 }
 
-/* ---------- save original + record ---------- */
+/** Save original image to Storage and create Firestore record. */
 export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPrompt, modelUsed, type }) {
   if (!base64) return { galleryUrl: null, id: null };
 
@@ -29,7 +28,6 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
   const file = bucket.file(path);
   const token = uuidv4();
 
-  // ✅ Add long-term caching for the ORIGINAL image as well (thumb/tiny already cached elsewhere)
   await file.save(buffer, {
     metadata: {
       contentType: mimeType,
@@ -48,7 +46,7 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
     prompt,
     enhancedPrompt,
     modelUsed,
-    type: type || null, // <- store the image type pill (T2I/I2I/etc.)
+    type: type || null,
     mimeType,
     createdAt: FieldValueServer.serverTimestamp()
   });
@@ -56,11 +54,11 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
   return { galleryUrl, id };
 }
 
-/* ---------- delete everywhere (Storage + Firestore + Storyboards) ---------- */
+/** Delete from Storage + Firestore + any storyboard references. */
 export async function deleteImageCompletely(imageId) {
   if (!imageId) throw new Error("imageId required");
 
-  // 1) Read the image doc for storage path
+  // Read the image doc
   let imgRef, path;
   try {
     imgRef = db.collection("images").doc(String(imageId));
@@ -74,7 +72,7 @@ export async function deleteImageCompletely(imageId) {
     throw e;
   }
 
-  // 2) Delete from Storage (original + previews). Ignore NotFound.
+  // Delete from Storage (original + previews). Ignore NotFound.
   try {
     const baseNoExt = path.replace(/\.[^.]+$/, "");
     const toDeletePaths = [path, `${baseNoExt}_thumb.jpg`, `${baseNoExt}_tiny.jpg`];
@@ -95,7 +93,7 @@ export async function deleteImageCompletely(imageId) {
     throw e;
   }
 
-  // 3) Remove from ALL storyboards.
+  // Remove from ALL storyboards.
   try {
     const cgSnap = await db.collectionGroup("items").where("imageId", "==", String(imageId)).get();
     if (!cgSnap.empty) {
@@ -111,7 +109,7 @@ export async function deleteImageCompletely(imageId) {
   } catch (e) {
     if (String(e).includes("FAILED_PRECONDITION")) {
       try {
-        const boardsSnap = await db.collection("storyboards").select().get(); // ids only
+        const boardsSnap = await db.collection("storyboards").select().get();
         if (!boardsSnap.empty) {
           const refs = boardsSnap.docs.map((d) =>
             db.collection("storyboards").doc(d.id).collection("items").doc(String(imageId))
@@ -120,7 +118,7 @@ export async function deleteImageCompletely(imageId) {
           for (let i = 0; i < refs.length; i += CHUNK) {
             const batch = db.batch();
             const slice = refs.slice(i, i + CHUNK);
-            slice.forEach((ref) => batch.delete(ref)); // deleting non-existent is fine
+            slice.forEach((ref) => batch.delete(ref));
             await batch.commit();
           }
         }
@@ -134,7 +132,7 @@ export async function deleteImageCompletely(imageId) {
     }
   }
 
-  // 4) Delete the image doc itself
+  // Delete the image doc itself
   try {
     await imgRef.delete();
   } catch (e) {

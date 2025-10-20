@@ -1,5 +1,5 @@
+// functions/services/enhance.js
 // Uses Google Gemini 2.5 Flash (text) to enhance prompts.
-// Reuses the same GOOGLE_API_KEY as image generation.
 
 import { DEFAULT_SYSTEM_PROMPT, ENHANCER_MODEL } from "../config.js";
 
@@ -33,7 +33,6 @@ export async function enhancePrompt({ userText, systemPrompt }) {
     model
   )}:generateContent?key=${encodeURIComponent(GOOGLE_KEY)}`;
 
-  // Gemini supports top-level systemInstruction (recommended)
   const body = {
     contents: [
       {
@@ -44,7 +43,6 @@ export async function enhancePrompt({ userText, systemPrompt }) {
     ...(systemPrompt
       ? { systemInstruction: { role: "system", parts: [{ text: systemPrompt }] } }
       : { systemInstruction: { role: "system", parts: [{ text: DEFAULT_SYSTEM_PROMPT }] } })
-    // You can add generationConfig here if you want (temperature, maxOutputTokens, etc.)
   };
 
   const r = await fetch(url, {

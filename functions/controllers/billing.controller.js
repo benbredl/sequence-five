@@ -1,10 +1,8 @@
-import { Router } from "express";
+// functions/controllers/billing.controller.js
 import { db } from "../firebase.js";
+import { ok, err } from "../utils/http.js";
 
-const router = Router();
-
-// GET /api/billing/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
-router.get("/api/billing/summary", async (req, res) => {
+export async function getSummary(req, res) {
   try {
     const { from, to } = req.query || {};
     const fromDate = from ? new Date(from + "T00:00:00.000Z") : new Date(Date.now() - 14 * 864e5);
@@ -16,17 +14,15 @@ router.get("/api/billing/summary", async (req, res) => {
       .orderBy("ts", "asc")
       .get();
 
-    // Per-day aggregates
     const days = new Map(); // yyyy-mm-dd -> { date, total, services, models, counts }
     let grand = 0;
 
-    // Global aggregates
-    const models = new Map();   // model -> € cost (still USD here; client can convert)
-    const services = new Map(); // service -> cost
+    const models = new Map();   // model -> USD
+    const services = new Map(); // service -> USD
     const countsTotals = { enhance: 0, t2i: 0, i2i: 0 };
 
     for (const doc of snap.docs) {
-      const v = doc.data();
+      const v = doc.data() || {};
       const d = (v.ts?.toDate ? v.ts.toDate() : v.ts) || new Date();
       const key = d.toISOString().slice(0, 10);
       const cost = Number(v.cost_usd || 0);
@@ -44,7 +40,6 @@ router.get("/api/billing/summary", async (req, res) => {
       if (v.service) entry.services[v.service] = (entry.services[v.service] || 0) + cost;
       if (v.model)   entry.models[v.model]     = (entry.models[v.model]     || 0) + cost;
 
-      // Usage counts from action
       const a = String(v.action || "").toLowerCase();
       if (a === "enhance") { entry.counts.enhance++; countsTotals.enhance++; }
       else if (a === "t2i") { entry.counts.t2i++; countsTotals.t2i++; }
@@ -72,11 +67,8 @@ router.get("/api/billing/summary", async (req, res) => {
       prompts: countsTotals.enhance
     };
 
-    res.json({ days: dayArr, totals, counts });
+    return ok(res, { days: dayArr, totals, counts });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message || String(e) });
+    return err(res, e);
   }
-});
-
-export default router;
+}

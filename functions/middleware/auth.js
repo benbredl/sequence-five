@@ -1,7 +1,8 @@
+// functions/middleware/auth.js
 export default function auth(req, res, next) {
   const user = process.env.BASIC_AUTH_USER || "";
   const pass = process.env.BASIC_AUTH_PASS || "";
-  if (!user || !pass) return next(); // auth disabled if not set
+  if (!user || !pass) return next(); // disabled if not configured
 
   const header = req.headers["authorization"] || "";
   const [scheme, credentials] = header.split(" ");
@@ -20,6 +21,6 @@ export default function auth(req, res, next) {
 }
 
 function challenge(res) {
-  res.set("WWW-Authenticate", 'Basic realm="Nano Banana"');
+  res.set("WWW-Authenticate", 'Basic realm="Sequence Five"');
   return res.status(401).send("Auth required");
 }
