@@ -44,6 +44,22 @@
     return null;
   }
 
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function formatDateTimeLocal(isoLike) {
+    try {
+      const d = typeof isoLike === "string" || isoLike instanceof Date ? new Date(isoLike) : null;
+      if (!d || isNaN(d.getTime())) return "";
+      const y = d.getFullYear();
+      const m = pad2(d.getMonth() + 1);
+      const day = pad2(d.getDate());
+      const hh = pad2(d.getHours());
+      const mm = pad2(d.getMinutes());
+      return `${y}-${m}-${day} ${hh}:${mm}`; // 24h, local time
+    } catch {
+      return "";
+    }
+  }
+
   async function forceDownload(url, name) {
     try {
       const r = await fetch(url, { mode: "cors" });
@@ -277,19 +293,9 @@
 
     const meta = document.createElement("div");
     meta.className = "gal-meta";
+    meta.style.fontSize = "12px"; // small & clean
     const dt = document.createElement("span");
-    try {
-      const d = item?.createdAt ? new Date(item.createdAt) : null;
-      dt.textContent = d
-        ? d.toLocaleDateString(undefined, {
-            year: "2-digit",
-            month: "2-digit",
-            day: "2-digit",
-          })
-        : "";
-    } catch {
-      dt.textContent = "";
-    }
+    dt.textContent = formatDateTimeLocal(item?.createdAt || "");
     meta.appendChild(dt);
 
     const actions = document.createElement("div");

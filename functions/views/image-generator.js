@@ -91,6 +91,7 @@ export const HTML = [
   "</div>",
 
   "<script>var DEFAULT_SYSTEM_PROMPT=", JSON.stringify(DEFAULT_SYSTEM_PROMPT), ";</script>",
+  "<script src='/assets/nbviewer.js'></script>",
   "<script src='/assets/generator.js'></script>",
   "</body></html>"
 ].join("");

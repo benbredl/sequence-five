@@ -55,14 +55,25 @@
     return j;
   }
 
+  // NOTE: We prefer totals.byKind (text,image) if backend provides it.
+  // Fallback to older byService mapping (openai=text, gemini=image) for compatibility.
   function setKPIs(data) {
-    const grand = Number(data?.totals?.grandTotalUsd || 0);
+    const byKind = data?.totals?.byKind;
     const byService = data?.totals?.byService || {};
-    const txt = Number(byService.openai || 0); // enhancer text cost
-    const img = Number(byService.gemini || 0);
-    kpiTotal.textContent = fmtEUR(grand * 0.92); // rough EUR display without FX API
-    kpiText.textContent = fmtEUR(txt * 0.92);
-    kpiImage.textContent = fmtEUR(img * 0.92);
+
+    const textUsd = byKind ? Number(byKind.text || 0)
+                           : Number(byService.openai || 0);
+    const imageUsd = byKind ? Number(byKind.image || 0)
+                            : Number(byService.gemini || 0);
+
+    const grand = textUsd + imageUsd;
+
+    // Simple USD->EUR display without FX API (same heuristic as before)
+    const toEUR = (usd) => usd * 0.92;
+
+    kpiTotal.textContent = fmtEUR(toEUR(grand));
+    kpiText.textContent = fmtEUR(toEUR(textUsd));
+    kpiImage.textContent = fmtEUR(toEUR(imageUsd));
   }
 
   function drawLineChart(canvas, labels, series) {

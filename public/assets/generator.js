@@ -141,35 +141,25 @@
   });
   removeUpload.addEventListener("click", clearUpload);
 
-  /* ---------- Skeleton / result card ---------- */
-  function skeletonCard() {
-    // Outer card: keep the CARD border
-    const card = createEl("div", "result-card");
-    // Media: NO border here to avoid double-border look while loading
+  /* ---------- Skeleton / result media (no outer card) ---------- */
+  function skeletonMedia() {
+    // Media: the only container we render in results (avoid card-in-card)
     const media = createEl("div", "result-media");
-    media.style.border = "none"; // <- prevent double border during skeleton
-
-    // Force aspect box (16:9) so content never “explodes” in height
     media.style.position = "relative";
     media.style.aspectRatio = "16 / 9";
     media.style.overflow = "hidden";
+    media.style.margin = "0 0 12px 0"; // keep vertical spacing between items
 
     // Spinner
     const sk = createEl("div", "skeleton");
     const sp = createEl("div", "spinner-lg");
     sk.appendChild(sp);
     media.appendChild(sk);
-    card.appendChild(media);
-    return { card, media, sk };
+
+    return media;
   }
 
   function renderImageIntoMedia(media, imgUrl, meta) {
-    // Ensure aspect box + proper fit
-    media.style.border = ""; // restore the default border for final media
-    media.style.position = "relative";
-    media.style.aspectRatio = "16 / 9";
-    media.style.overflow = "hidden";
-
     // Remove any skeleton
     const sk = media.querySelector(".skeleton");
     if (sk && sk.parentNode) sk.parentNode.removeChild(sk);
@@ -185,14 +175,26 @@
 
     media.appendChild(img);
 
+    // Hover overlay (Download / Add to storyboard / Delete) – same as gallery
+    if (window.NBViewer && typeof NBViewer.attachHoverOverlay === "function") {
+      const overlay = NBViewer.attachHoverOverlay(
+        media,                                   // attach to the media container (position:relative)
+        meta.galleryUrl || imgUrl,               // prefer full-res for download
+        { id: meta.id || null, createdAt: meta.createdAt || "" },
+        () => {                                  // onDeleted: remove this media
+          if (media && media.parentNode) media.parentNode.removeChild(media);
+          showEmptyIfNeeded();
+        }
+      );
+      media.appendChild(overlay);
+    }
+
     // Clicking opens fullscreen (use full-res URL if we have it)
     media.style.cursor = "zoom-in";
     media.addEventListener("click", () => {
       const full = meta.galleryUrl || imgUrl;
       if (window.NBViewer && typeof NBViewer.open === "function") {
-        NBViewer.open(full, {
-          imageId: meta.id || null
-        });
+        NBViewer.open(full, { imageId: meta.id || null });
       } else {
         // Fallback: open in new tab
         window.open(full, "_blank", "noopener,noreferrer");
@@ -225,9 +227,9 @@
     if (!text) { alert("Please write a prompt."); return; }
     if (inProgress >= MAX_PARALLEL) { alert(`Please wait — max ${MAX_PARALLEL} generations in progress.`); return; }
 
-    // Create skeleton result card (clean, single border look)
-    const { card, media } = skeletonCard();
-    resultsGrid.prepend(card);
+    // Create skeleton media (single bordered box; no outer result-card)
+    const media = skeletonMedia();
+    resultsGrid.prepend(media);
     showEmptyIfNeeded();
 
     setInProgress(inProgress + 1);
@@ -257,7 +259,10 @@
       })();
       const objUrl = blob ? URL.createObjectURL(blob) : `data:${j.mimeType || "image/png"};base64,${base64}`;
 
-      renderImageIntoMedia(media, objUrl, { id, galleryUrl });
+      // Pass a createdAt so overlay can show timestamp right away
+      const createdAtNow = new Date().toISOString();
+
+      renderImageIntoMedia(media, objUrl, { id, galleryUrl, createdAt: createdAtNow });
 
       // Revoke the temp URL later to free memory
       setTimeout(() => { if (blob) URL.revokeObjectURL(objUrl); }, 30000);

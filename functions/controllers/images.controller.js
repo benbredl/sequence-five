@@ -3,6 +3,7 @@ import { enhancePrompt } from "../services/enhance.js";
 import { generateFromText, generateFromImage } from "../services/gemini.js";
 import { saveImageAndRecord, deleteImageCompletely } from "../services/storage.js";
 import { bad, err, ok } from "../utils/http.js";
+import { pricingCatalog, BillingConfigError } from "../services/billing.js";
 
 /**
  * POST /api/generate-image
@@ -13,6 +14,16 @@ import { bad, err, ok } from "../utils/http.js";
  *  - enhancedPrompt? (string)  // optional, if client pre-enhanced
  */
 export async function postGenerateImage(req, res) {
+  // Enforce ENV_FAIL: reject-requests (user-friendly error)
+  try {
+    pricingCatalog();
+  } catch (e) {
+    if (e instanceof BillingConfigError) {
+      return res.status(500).json({ error: "Billing configuration missing. Please contact admin." });
+    }
+    return err(res, e);
+  }
+
   try {
     const { prompt, image, systemPrompt, enhancedPrompt } = req.body || {};
     const promptStr = typeof prompt === "string" ? prompt.trim() : "";

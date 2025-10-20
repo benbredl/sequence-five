@@ -1,8 +1,10 @@
 // functions/services/gemini.js
+// Gemini image generation (T2I/I2I) + billing integration (kind: "image")
+
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const MODEL_ID = "gemini-2.5-flash-image";
 
-import { recordUsage, costGeminiPerImage } from "./billing.js";
+import { recordUsage, costGeminiImage, currentUnitPricesSnapshot, BillingConfigError } from "./billing.js";
 
 function partsFromT2I(text) {
   return [{ text }];
@@ -38,20 +40,30 @@ async function callGemini(parts, { action }) {
   const data = (img?.inlineData?.data || img?.inline_data?.data || "").trim();
 
   const usage = j?.usageMetadata || null;
+  const promptTokens = usage?.promptTokenCount || 0;
 
-  const cost_usd = costGeminiPerImage({ images: 1 });
-  await recordUsage({
-    ts: new Date(),
-    service: "gemini",
-    action, // "t2i" | "i2i"
-    model: MODEL_ID,
-    request_id: null,
-    usage,
-    unit_prices: {
-      gemini_image_per_image: Number(process.env.PRICE_GEMINI_IMAGE_PER_IMAGE_USD || 0.039)
-    },
-    cost_usd
-  });
+  // Billing: compute cost
+  try {
+    const cost_usd = costGeminiImage({
+      images: 1,
+      // per policy: only charge input tokens if present
+      promptTokens
+    });
+    await recordUsage({
+      ts: new Date(),
+      service: "gemini",
+      action, // "t2i" | "i2i"
+      kind: "image",
+      model: MODEL_ID,
+      request_id: null,
+      usage,
+      unit_prices: currentUnitPricesSnapshot(),
+      cost_usd
+    });
+  } catch (e) {
+    if (!(e instanceof BillingConfigError)) throw e;
+    // Skip billing row when pricing misconfigured — controller will have blocked anyway.
+  }
 
   return { mimeType, base64: data };
 }
