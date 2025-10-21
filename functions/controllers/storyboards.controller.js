@@ -88,7 +88,9 @@ export async function getStoryboard(req, res) {
         tinyUrl: img.tinyUrl || null,
         enhancedPrompt: img.enhancedPrompt || null,
         modelUsed: img.modelUsed || null,
-        mimeType: img.mimeType || null
+        mimeType: img.mimeType || null,
+        width: img.width ?? null,    // <- pass through intrinsic width
+        height: img.height ?? null   // <- pass through intrinsic height
       };
     });
 

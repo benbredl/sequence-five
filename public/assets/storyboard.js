@@ -1,15 +1,14 @@
-/* functions/client/storyboard.js
-   Client bundle for /storyboard?id=...
-   - Loads storyboard meta + items
-   - Renders vertical timeline of items
-   - Per-item actions: open fullscreen, remove from storyboard
+/* public/assets/storyboard.js
+   - Head card now shows ONLY the storyboard description (no duplicate title).
+   - Image overlay on storyboard items no longer shows a timestamp; it only shows
+     the stored high-res resolution (width × height) and the type pill.
 */
 
 (function () {
   const $ = (id) => document.getElementById(id);
   const el = (t, c) => { const n = document.createElement(t); if (c) n.className = c; return n; };
 
-  // Ensure viewer exists
+  // Fallback for fullscreen viewer
   if (!window.NBViewer) {
     window.NBViewer = {
       open: (url) => window.open(url, '_blank', 'noopener'),
@@ -22,9 +21,16 @@
     return u.searchParams.get(id);
   }
 
+  function deriveType(modelUsed) {
+    const s = String(modelUsed || "").toLowerCase();
+    if (s.includes("prefix-only")) return "I2I";
+    return "T2I";
+  }
+
   const head = $('head');
   const itemsWrap = $('itemsWrap');
   const empty = $('empty');
+  const pageTitle = $('pageTitle');
 
   const storyboardId = getQuery('id');
   if (!storyboardId) {
@@ -41,59 +47,80 @@
     const card = el('div', 'sb-card');
     const inner = el('div', 'sb-inner');
 
-    const media = el('div', 'sb-media');
+    /* ----- Left: media with overlay + actions ----- */
+    const mediaWrap = el('div', 'sb-media');
+
     const img = new Image();
     img.alt = 'storyboard item';
     img.decoding = 'async';
     img.loading = 'lazy';
     img.src = it.thumbUrl || it.url;
     img.className = 'blur-up';
-    img.addEventListener('load', () => img.classList.add('is-loaded'));
+    img.addEventListener('load', () => { img.classList.add('is-loaded'); });
     img.addEventListener('click', () => window.NBViewer.openViewerWithActions({ url: it.url, imageId: it.imageId }));
-    media.appendChild(img);
 
+    // Bottom overlay: resolution + type pill (NO timestamp)
+    const overlay = el('div', 'sb-ov');
+
+    // high-res resolution pulled from stored width/height
+    const resSpan = el('span', 'sb-meta-small');
+    if (Number(it.width) && Number(it.height)) {
+      resSpan.textContent = `${it.width}×${it.height}`;
+    } else {
+      resSpan.textContent = "";
+    }
+
+    const typePill = el('span', 'sb-pill');
+    const t = it.type || deriveType(it.modelUsed);
+    typePill.textContent = (t || '').toLowerCase();
+
+    overlay.appendChild(resSpan);
+    overlay.appendChild(typePill);
+
+    mediaWrap.appendChild(img);
+    mediaWrap.appendChild(overlay);
+
+    // Under-image actions
+    const under = el('div', 'sb-actions');
+    const bUpscale = el('button', 'btn-ghost'); bUpscale.textContent = 'Upscale';
+    const bAnimate = el('button', 'btn-ghost'); bAnimate.textContent = 'Animate';
+    bUpscale.onclick = () => alert('Upscale — coming soon');
+    bAnimate.onclick = () => alert('Animate — coming soon');
+    under.appendChild(bUpscale);
+    under.appendChild(bAnimate);
+
+    const left = el('div');
+    left.appendChild(mediaWrap);
+    left.appendChild(under);
+
+    /* ----- Right: shot title + description + generator ----- */
     const right = el('div');
-    const meta = el('div'); meta.className = 'hint';
-    try {
-      const dt = it.addedAt ? new Date(it.addedAt) : null;
-      meta.textContent = (dt ? dt.toLocaleString() : '') + (it.modelUsed ? ' • ' + it.modelUsed : '');
-    } catch { meta.textContent = it.modelUsed || ''; }
-
-    const actions = el('div', 'sb-actions');
-    const bOpen = el('button', 'pill'); bOpen.textContent = 'Open';
-    bOpen.onclick = () => window.NBViewer.openViewerWithActions({ url: it.url, imageId: it.imageId });
-
-    const bRemove = el('button', 'pill'); bRemove.textContent = 'Remove from storyboard';
-    bRemove.onclick = async () => {
-      if (!confirm('Remove this image from the storyboard?')) return;
-      bRemove.disabled = true;
-      try {
-        const r = await fetch('/api/storyboard/remove', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ storyboardId, imageId: it.imageId })
-        });
-        const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
-        row.remove();
-        if (!itemsWrap.firstChild) empty.style.display = 'block';
-      } catch (e) {
-        alert(e.message || e);
-        bRemove.disabled = false;
+    const shotTitle = el('h3', 'sb-shot-title');
+    shotTitle.textContent = 'Shot title';
+    const shotDesc = el('p', 'sb-shot-desc');
+    shotDesc.textContent = 'Shot description goes here. Add a brief explanation of the shot, camera movement, framing, or narrative intent.';
+    const bGen = el('button', 'pill'); bGen.textContent = 'Generate description';
+    bGen.onclick = () => {
+      const base = (it.enhancedPrompt || '').trim();
+      if (base) {
+        shotDesc.textContent = base;
+      } else {
+        shotDesc.textContent = 'A cinematic take focusing on subject clarity and mood. Subtle camera drift, shallow DOF, and soft rim light enhance the focal point.';
       }
     };
 
-    actions.appendChild(bOpen);
-    actions.appendChild(bRemove);
+    right.appendChild(shotTitle);
+    right.appendChild(shotDesc);
+    right.appendChild(bGen);
 
-    right.appendChild(meta);
-    right.appendChild(actions);
-
-    inner.appendChild(media);
+    /* ----- Compose card ----- */
+    inner.appendChild(left);
     inner.appendChild(right);
     card.appendChild(inner);
 
     row.appendChild(rail);
     row.appendChild(card);
+
     return row;
   }
 
@@ -105,11 +132,15 @@
       const r = await fetch(url.toString());
       const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
 
-      head.innerHTML = '';
-      const title = el('div'); title.style.fontWeight = '700'; title.textContent = j.title || '(Untitled storyboard)';
-      const desc = el('div'); desc.className = 'hint'; desc.textContent = j.description || '';
-      head.appendChild(title); head.appendChild(desc);
+      // Page heading (top h1) is set to the storyboard title
+      if (pageTitle) pageTitle.textContent = j.title || 'Storyboard';
 
+      // Head card: ONLY description (no duplicate title here)
+      head.innerHTML = '';
+      const desc = el('div', 'head-desc'); desc.textContent = j.description || '';
+      head.appendChild(desc);
+
+      // Items
       itemsWrap.innerHTML = '';
       const arr = j.items || [];
       if (!arr.length) { empty.style.display = 'block'; return; }

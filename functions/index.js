@@ -20,7 +20,7 @@ const PRICE_GEMINI_TEXT_INPUT_USD_PER_1M  = defineSecret("PRICE_GEMINI_TEXT_INPU
 const PRICE_GEMINI_TEXT_OUTPUT_USD_PER_1M = defineSecret("PRICE_GEMINI_TEXT_OUTPUT_USD_PER_1M");
 // Image pricing (Gemini image)
 const PRICE_GEMINI_IMAGE_PER_IMAGE_USD    = defineSecret("PRICE_GEMINI_IMAGE_PER_IMAGE_USD");
-// Optional note displayed in dashboard
+// Optional note displayed in usage
 const PRICE_NOTE = defineSecret("PRICE_NOTE");
 // ---- Export the HTTPS app (gen2) ----
 export const web = onRequest(

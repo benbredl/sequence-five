@@ -14,11 +14,16 @@ export async function getSummary(req, res) {
       .orderBy("ts", "asc")
       .get();
 
-    const days = new Map(); // yyyy-mm-dd -> { date, total, services, models, counts }
-    let grand = 0;
+    // yyyy-mm-dd -> day aggregation
+    const days = new Map();
 
-    const models = new Map();   // model -> USD
-    const services = new Map(); // service -> USD
+    // Global rollups
+    let grand = 0;
+    const models   = new Map();   // model -> USD
+    const services = new Map();   // service -> USD
+    const kinds    = new Map();   // kind   -> USD
+
+    // Activity counters
     const countsTotals = { enhance: 0, t2i: 0, i2i: 0 };
 
     for (const doc of snap.docs) {
@@ -26,6 +31,14 @@ export async function getSummary(req, res) {
       const d = (v.ts?.toDate ? v.ts.toDate() : v.ts) || new Date();
       const key = d.toISOString().slice(0, 10);
       const cost = Number(v.cost_usd || 0);
+      const service = String(v.service || "").toLowerCase() || null;
+      const model   = v.model || null;
+      const kindRaw = String(v.kind || "").toLowerCase();
+      const kind =
+        kindRaw.includes("image") ? "image" :
+        kindRaw.includes("text")  ? "text"  :
+        (kindRaw || "other");
+
       grand += cost;
 
       const entry = days.get(key) || {
@@ -33,13 +46,18 @@ export async function getSummary(req, res) {
         total: 0,
         services: { openai: 0, gemini: 0 },
         models: {},
-        counts: { enhance: 0, t2i: 0, i2i: 0 }
+        counts: { enhance: 0, t2i: 0, i2i: 0 },
+        byKind: { image: 0, text: 0, other: 0 }
       };
 
       entry.total += cost;
-      if (v.service) entry.services[v.service] = (entry.services[v.service] || 0) + cost;
-      if (v.model)   entry.models[v.model]     = (entry.models[v.model]     || 0) + cost;
+      if (service) entry.services[service] = (entry.services[service] || 0) + cost;
+      if (model)   entry.models[model]     = (entry.models[model]     || 0) + cost;
 
+      // Per-day kind rollup
+      entry.byKind[kind] = (entry.byKind[kind] || 0) + cost;
+
+      // Activity counters (unchanged semantics)
       const a = String(v.action || "").toLowerCase();
       if (a === "enhance") { entry.counts.enhance++; countsTotals.enhance++; }
       else if (a === "t2i") { entry.counts.t2i++; countsTotals.t2i++; }
@@ -47,8 +65,9 @@ export async function getSummary(req, res) {
 
       days.set(key, entry);
 
-      if (v.model)   models.set(v.model,   (models.get(v.model)   || 0) + cost);
-      if (v.service) services.set(v.service,(services.get(v.service)|| 0) + cost);
+      if (model)   models.set(model,   (models.get(model)   || 0) + cost);
+      if (service) services.set(service,(services.get(service)|| 0) + cost);
+      kinds.set(kind, (kinds.get(kind) || 0) + cost);
     }
 
     const dayArr = Array.from(days.values()).sort((a,b)=>a.date.localeCompare(b.date));
@@ -56,6 +75,7 @@ export async function getSummary(req, res) {
       grandTotalUsd: +grand.toFixed(4),
       byService: Object.fromEntries(Array.from(services.entries()).map(([k,v])=>[k,+v.toFixed(4)])),
       byModel:   Object.fromEntries(Array.from(models.entries()).map(([k,v])=>[k,+v.toFixed(4)])),
+      byKind:    Object.fromEntries(Array.from(kinds.entries()).map(([k,v])=>[k,+v.toFixed(4)])),
       range: { from: fromDate.toISOString().slice(0,10), to: toDate.toISOString().slice(0,10) }
     };
 

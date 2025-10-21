@@ -43,7 +43,7 @@ export async function postGenerateImage(req, res) {
       const { mimeType, base64 } = await generateFromImage(baseMime, base64Data, combined);
 
       const modelUsed = "no-llm (prefix-only)";
-      const { galleryUrl, id } = await saveImageAndRecord({
+      const { archiveUrl, id } = await saveImageAndRecord({
         mimeType,
         base64,
         prompt: combined,
@@ -57,7 +57,7 @@ export async function postGenerateImage(req, res) {
         openaiModelUsed: "none",
         mimeType,
         imageBase64: base64,
-        galleryUrl,
+        archiveUrl,
         id
       });
     }
@@ -71,7 +71,7 @@ export async function postGenerateImage(req, res) {
       modelUsed = out.modelUsed;
     }
     const { mimeType, base64 } = await generateFromText(enhanced);
-    const { galleryUrl, id } = await saveImageAndRecord({
+    const { archiveUrl, id } = await saveImageAndRecord({
       mimeType,
       base64,
       prompt: promptStr,
@@ -85,7 +85,7 @@ export async function postGenerateImage(req, res) {
       openaiModelUsed: modelUsed,
       mimeType,
       imageBase64: base64,
-      galleryUrl,
+      archiveUrl,
       id
     });
   } catch (e) {

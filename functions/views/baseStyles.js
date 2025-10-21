@@ -77,7 +77,8 @@ body::before{
   background:transparent;border:1px solid var(--line-soft); box-shadow: var(--shadow-soft);
 }
 .nav-brand img{width:22px;height:22px;display:block}
-.nav-title{font-weight:700;letter-spacing:.2px;color:var(--ink);text-shadow:0 1px 0 rgba(0,0,0,.25)}
+/* Make brand semi-bold (600), not bold */
+.nav-title{font-weight:600;letter-spacing:.2px;color:var(--ink);text-shadow:0 1px 0 rgba(0,0,0,.25)}
 
 .nav{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .nav a{
@@ -94,14 +95,26 @@ body::before{
 .nav .sep{height:1px;background:var(--line-soft);margin:12px 6px}
 
 /* Main + wrap */
-.main{min-height:100vh;display:flex;flex-direction:column}
-.wrap{ width:min(var(--wrap-max), var(--wrap-w)); margin-inline:auto; padding:32px 18px 0 } /* top space for titles */
+.main{
+  min-height:100vh;
+  display:flex; /* column is default in file, but we explicitly set below on wrap */
+}
+/* Make the inner wrap a flex column that fills the column height so footer can push to bottom */
+.wrap{
+  width:min(var(--wrap-max), var(--wrap-w));
+  margin-inline:auto;
+  padding:32px 18px 0;
+  display:flex;
+  flex-direction:column;
+  min-height:100%; /* fill the .main column */
+}
 @media (max-width:1100px){ .wrap{ width:min(94vw, var(--wrap-max)) } }
 @media (max-width:640px){ .wrap{ width:96vw; padding:24px 12px 0 } }
 
 /* Header */
 .headerbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
-.headerbar .hgroup h1{margin:0;font-size:22px;letter-spacing:.2px}
+/* Page title should be semi-bold (600) */
+.headerbar .hgroup h1{margin:0;font-size:22px;letter-spacing:.2px;font-weight:600}
 .headerbar .sub{color:var(--muted);font-size:12px;margin-top:4px}
 
 /* Cards (transparent) */
@@ -124,7 +137,7 @@ body::before{
 @media (max-width:840px){ .grid-gal{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:520px){ .grid-gal{grid-template-columns:1fr} }
 
-/* Gallery cards + overlay */
+/* Archive cards + overlay */
 .card-gal{border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:transform var(--fast) var(--ease),filter var(--fast) var(--ease)}
 .card-gal:hover{transform:translateY(-1px);filter:brightness(1.03)}
 .card-gal img{display:block;width:100%;height:auto}
@@ -208,7 +221,7 @@ button:disabled{ opacity:.6; cursor:not-allowed }
 .table table{width:100%;border-collapse:collapse;font-size:13px}
 .table th,.table td{padding:10px;border-bottom:1px solid var(--line-soft)} .table th{text-align:left;color:#c8d0ee;font-weight:700}
 
-/* Footer pinned to bottom visually on short pages */
+/* Footer pinned to bottom via flex on .wrap */
 .site-footer{
   margin-top:auto;padding:20px 12px;text-align:center;color:#a8b0c9;font-size:12px;
   border-top:1px solid var(--line-soft);

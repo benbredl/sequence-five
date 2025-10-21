@@ -1,5 +1,6 @@
 // functions/services/storage.js
 import { v4 as uuidv4 } from "uuid";
+import sharp from "sharp";
 import { db, bucket, FieldValueServer } from "../firebase.js";
 
 function extFromMime(m) {
@@ -21,6 +22,18 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
   if (!base64) return { galleryUrl: null, id: null };
 
   const buffer = Buffer.from(base64, "base64");
+
+  // Read intrinsic dimensions from the original buffer
+  let width = null;
+  let height = null;
+  try {
+    const meta = await sharp(buffer).metadata();
+    width = meta?.width ?? null;
+    height = meta?.height ?? null;
+  } catch {
+    // If metadata probing fails, leave width/height null (client can fallback if needed)
+  }
+
   const id = uuidv4();
   const ext = extFromMime(mimeType);
   const folder = yyyymmdd();
@@ -48,6 +61,8 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
     modelUsed,
     type: type || null,
     mimeType,
+    width,        // <- stored intrinsic width
+    height,       // <- stored intrinsic height
     createdAt: FieldValueServer.serverTimestamp()
   });
 
