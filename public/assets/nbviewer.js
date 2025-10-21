@@ -10,35 +10,53 @@
   const SVG_DELETE =
     "<svg viewBox='0 0 24 24' width='16' height='16' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/></svg>";
 
-  // ----- Styles (viewer + infobar) -----
+  // ----- Styles -----
   function injectStyle() {
     if (document.getElementById("viewer-style")) return;
     const css =
+      /* Fullscreen viewer container */
       ".viewer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;animation:vbIn .18s ease forwards}" +
       "@keyframes vbIn{to{opacity:1}}" +
       ".viewer-wrap{position:relative;display:inline-block;max-width:92vw;max-height:92vh}" +
       ".viewer-img{max-width:92vw;max-height:92vh;border-radius:18px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);transition:filter .18s ease;display:block}" +
       ".viewer-backdrop.blurred .viewer-img{filter:blur(10px) brightness(.65)}" +
-      ".viewer-bottombar{position:absolute;right:12px;bottom:12px;display:flex;gap:6px;align-items:center;z-index:3}" +
-      ".viewer-actions{display:flex;gap:6px;align-items:center}" +
-      ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;background:transparent;padding:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff}" +
+
+      /* Fullscreen bottom bars */
+      ".viewer-bottombar{position:absolute;right:16px;bottom:12px;display:flex;gap:4px;align-items:center;z-index:3}" +
+      ".viewer-actions{display:flex;gap:4px;align-items:center}" +
+
+      /* Icon buttons: white icons only, no border, tighter footprint */
+      ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;outline:none;background:transparent;padding:0;margin:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff;box-shadow:none}" +
       ".icon-btn[disabled]{opacity:.5;cursor:not-allowed}" +
       ".icon-btn:hover{filter:brightness(1.08)}" +
       ".icon-btn:active{transform:translateY(1px)}" +
       ".icon-btn svg{width:16px;height:16px;display:block}" +
 
-      /* Infobar over image (bottom, subtle gradient, wide) */
-      ".viewer-infobar{position:absolute;left:0;right:0;bottom:0;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:2;" +
-        "background:linear-gradient(0deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%)}" +
+      /* Fullscreen infobar (bottom gradient) with side padding/gutters */
+      ".viewer-infobar{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:2;background:linear-gradient(0deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%)}" +
       ".viewer-info-left{display:flex;align-items:center;gap:10px;font-size:12px;color:#e6e9ff;opacity:.95}" +
-      ".viewer-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid #2f375a;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));color:#c7ceed;padding:3px 7px;font-size:11px;font-weight:800;letter-spacing:.2px}" +
-      ".viewer-ts{font-size:12px;color:#e6e9ff;opacity:.95}" +
-      ".viewer-res{font-size:12px;color:#cbd2f0;opacity:.9}" ;
+
+      /* Timestamp + resolution in modal share the same small look */
+      ".viewer-ts{font-size:11px;color:#e6e9ff;opacity:.95}" +
+      ".viewer-res{font-size:11px;color:#e6e9ff;opacity:.9}" +
+
+      /* Fullscreen type pill: white border, white text, non-bold */
+      ".viewer-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid rgba(255,255,255,.8);background:transparent;color:#ffffff;padding:2px 8px;font-size:11px;font-weight:400;letter-spacing:.2px;text-transform:none;opacity:.95}" +
+
+      /* --- Grid overlay: full-cover gradient + bottom bar --- */
+      ".gal-overlay{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 70%, rgba(0,0,0,.85) 100%);pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .12s ease, transform .12s ease}" +
+      ".gal-bottombar{position:absolute;left:12px;right:12px;bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:auto}" +
+      ".gal-meta{display:flex;align-items:center;gap:8px}" +
+      ".gal-actions{display:flex;align-items:center;gap:4px}" +
+      ".gal-ts{font-size:11px;color:#e6e9ff;opacity:.92}" ;
     const st = document.createElement("style");
     st.id = "viewer-style";
     st.appendChild(document.createTextNode(css));
     document.head.appendChild(st);
   }
+
+  // Ensure styles are present ASAP (prevents initial large timestamp flash)
+  injectStyle();
 
   // ----- Helpers -----
   function normalizeUrl(input) {
@@ -97,7 +115,7 @@
     }
   }
 
-  // ----- Storyboard picker (with background blur) -----
+  // ----- Storyboard picker -----
   function openPicker(imageId, backdropEl) {
     const back = document.createElement("div");
     back.style.cssText =
@@ -162,7 +180,7 @@
       });
   }
 
-  // ----- Fullscreen viewer with infobar -----
+  // ----- Fullscreen viewer with infobar (timestamp + resolution + type) -----
   function open(urlLike, opts) {
     injectStyle();
     const url = normalizeUrl(urlLike);
@@ -194,13 +212,14 @@
 
     const res = document.createElement("span");
     res.className = "viewer-res";
-    res.textContent = ""; // will be filled onload
+    res.textContent = ""; // filled on load
 
     const pill = document.createElement("span");
     pill.className = "viewer-pill";
     pill.textContent = (opts.type || "").toLowerCase();
 
-    infoLeft.appendChild(ts);
+    // left group: timestamp + resolution + type pill
+    if (ts.textContent) infoLeft.appendChild(ts);
     infoLeft.appendChild(res);
     if (pill.textContent) infoLeft.appendChild(pill);
 
@@ -273,7 +292,6 @@
       if (img.naturalWidth && img.naturalHeight) {
         res.textContent = `${img.naturalWidth}×${img.naturalHeight}`;
       }
-      // If no createdAt provided, at least show "now"
       if (!opts.createdAt) ts.textContent = formatTimestamp(new Date());
     }, { once: true });
 
@@ -292,40 +310,52 @@
     document.addEventListener("keydown", onKey);
   }
 
-  // ----- Card hover overlay (uses original classes so it inherits BASE_STYLES) -----
+  // ----- Card hover overlay for grid -----
+  // Full-cover gradient overlay; bottom bar contains timestamp + action icons.
+  // No type pill in the grid overlay.
   function attachHoverOverlay(cardEl, imgUrlLike, item, onDeleted) {
+    injectStyle();
     const imgUrl = normalizeUrl(imgUrlLike);
+
+    // Ensure card is a positioning and clipping context for overlay
+    const cs = getComputedStyle(cardEl);
+    if (cs.position === "static" || !cs.position) cardEl.style.position = "relative";
+    if (cs.overflow !== "hidden") cardEl.style.overflow = "hidden"; // clip overlay to image bounds
+
     const overlay = document.createElement("div");
     overlay.className = "gal-overlay";
 
+    const bottom = document.createElement("div");
+    bottom.className = "gal-bottombar";
+
+    // Meta: only timestamp (smaller)
     const meta = document.createElement("div");
     meta.className = "gal-meta";
     const dt = document.createElement("span");
+    dt.className = "gal-ts";
     dt.textContent = item?.createdAt ? formatTimestamp(item.createdAt) : "";
     meta.appendChild(dt);
 
-    const type = document.createElement("span");
-    type.className = "type-pill";
-    type.textContent = (item?.type || "").toLowerCase();
-    type.style.textTransform = "none";
-    meta.appendChild(type);
-
+    // Actions (tight spacing, icons only)
     const actions = document.createElement("div");
     actions.className = "gal-actions";
 
     const aDown = document.createElement("button");
     aDown.className = "icon-btn";
     aDown.innerHTML = SVG_DOWNLOAD;
+    aDown.title = "Download";
     aDown.onclick = (e) => { e.stopPropagation(); if (imgUrl) forceDownload(imgUrl); };
 
     const aAdd = document.createElement("button");
     aAdd.className = "icon-btn";
     aAdd.innerHTML = SVG_ADD;
+    aAdd.title = "Add to Storyboard";
     aAdd.onclick = (e) => { e.stopPropagation(); if (item && item.id) openPicker(item.id); };
 
     const aDel = document.createElement("button");
     aDel.className = "icon-btn";
     aDel.innerHTML = SVG_DELETE;
+    aDel.title = "Delete";
     aDel.onclick = async (e) => {
       e.stopPropagation();
       if (!item || !item.id) return;
@@ -351,12 +381,11 @@
     actions.appendChild(aAdd);
     actions.appendChild(aDel);
 
-    overlay.appendChild(meta);
-    overlay.appendChild(actions);
+    bottom.appendChild(meta);
+    bottom.appendChild(actions);
+    overlay.appendChild(bottom);
 
-    // Small enter/leave animation (matches original behavior)
-    overlay.style.opacity = "0";
-    overlay.style.transform = "translateY(8px)";
+    // Hover animation
     cardEl.addEventListener("mouseenter", () => {
       overlay.style.opacity = "1";
       overlay.style.transform = "translateY(0)";
