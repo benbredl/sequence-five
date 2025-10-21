@@ -256,7 +256,7 @@
   /* -------------------- Preload last 5 images into results -------------------- */
   async function preloadLastFive() {
     try {
-      const r = await fetch("/api/archive?limit=5");
+      const r = await fetch("/api/archive?limit=6");
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed");
       const items = Array.isArray(j.items) ? j.items : [];

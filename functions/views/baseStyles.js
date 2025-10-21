@@ -228,4 +228,19 @@ button:disabled{ opacity:.6; cursor:not-allowed }
   background:linear-gradient(180deg, var(--glass1), var(--glass2));
   border-radius:18px;
 }
+
+/* Progressive image utility used across pages (Archive/Generator/Storyboards) */
+img.blur-up{
+  filter: blur(14px);
+  transform: scale(1.02);
+  transition: filter .35s ease, transform .35s ease, opacity .35s ease;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+img.blur-up.is-loaded{
+  filter: blur(0);
+  transform: none;
+}
 `;
