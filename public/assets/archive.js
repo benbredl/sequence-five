@@ -1,25 +1,28 @@
 // public/assets/archive.js
-// Archive page with robust infinite scroll (IO + scroll fallback),
-// progressive images (tiny -> thumb), fullscreen (NBViewer).
+// Archive page with tiny (blur-up) -> thumbnail swap,
+// fullscreen uses only the high-res URL, and tamed infinite scroll.
 
 /* ========== DOM helpers ========== */
 const $ = (id) => document.getElementById(id);
 const grid = $("grid");
 const empty = $("empty");
 const sentinel = $("sentinel");
-const refreshBtn = $("refresh"); // (can be absent now)
+
+if (!grid || !sentinel) {
+  console.warn("[archive] grid/sentinel not found");
+}
 
 function el(tag, cls) { const n = document.createElement(tag); if (cls) n.className = cls; return n; }
-function nearBottom(px = 1200) {
+function nearBottom(px = 300) {
   const doc = document.documentElement;
   const scrollTop = (window.pageYOffset || doc.scrollTop) - (doc.clientTop || 0);
   const remaining = doc.scrollHeight - (scrollTop + window.innerHeight);
   return remaining < px;
 }
-function setEmptyVisibility() { empty.style.display = grid.children.length ? "none" : "block"; }
+function setEmptyVisibility() { if (empty) empty.style.display = grid.children.length ? "none" : "block"; }
 
-/* ========== Progressive images ========== */
-function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }, onSettled) {
+/* ========== Progressive images (tiny -> thumb) ========== */
+function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }) {
   const img = document.createElement("img");
   img.decoding = "async";
   img.loading = "lazy";
@@ -27,14 +30,19 @@ function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }, onSettled) {
   img.className = "blur-up";
   img.src = tinyUrl || thumbUrl;
 
-  const settle = () => { img.classList.add("is-loaded"); if (typeof onSettled === "function") onSettled(); };
+  const settle = () => { img.classList.add("is-loaded"); };
 
-  if (thumbUrl && thumbUrl !== tinyUrl) {
+  if (tinyUrl && thumbUrl && thumbUrl !== tinyUrl) {
     const hi = new Image();
     hi.decoding = "async";
     hi.src = thumbUrl;
-    hi.onload = () => { img.src = thumbUrl; requestAnimationFrame(settle); };
-    hi.onerror = () => requestAnimationFrame(settle);
+    const reveal = () => { img.src = thumbUrl; requestAnimationFrame(settle); };
+    if (hi.decode) {
+      hi.decode().then(reveal).catch(() => hi.addEventListener("load", reveal, { once: true }));
+    } else {
+      hi.addEventListener("load", reveal, { once: true });
+    }
+    hi.addEventListener("error", () => requestAnimationFrame(settle), { once: true });
   } else {
     img.addEventListener("load", settle, { once: true });
     img.addEventListener("error", settle, { once: true });
@@ -42,7 +50,7 @@ function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }, onSettled) {
   return img;
 }
 
-/* ========== Card renderer ========== */
+/* ========== Card renderer (single type pill, hi-res only in fullscreen) ========== */
 function cardForItem(item, onDeleted) {
   const card = el("div", "card-gal");
   card.style.position = "relative";
@@ -51,12 +59,12 @@ function cardForItem(item, onDeleted) {
   link.href = "javascript:void(0)";
 
   const img = createProgressiveImage(
-    { tinyUrl: item.tinyUrl, thumbUrl: item.thumbUrl || item.url, alt: "Generated image" },
-    () => { ensureFilled(2); }
+    { tinyUrl: item.tinyUrl, thumbUrl: item.thumbUrl || item.url, alt: "Generated image" }
   );
   link.appendChild(img);
   card.appendChild(link);
 
+  // Attach hover overlay (download / add / delete) + meta
   if (window.NBViewer && typeof NBViewer.attachHoverOverlay === "function") {
     const overlay = NBViewer.attachHoverOverlay(
       card,
@@ -64,10 +72,18 @@ function cardForItem(item, onDeleted) {
       { id: item.id, createdAt: item.createdAt, type: item.type },
       onDeleted
     );
+    // Ensure only one type pill
+    try {
+      const metaRow = overlay && overlay.querySelector(".gal-meta");
+      if (metaRow) {
+        const pills = metaRow.querySelectorAll(".type-pill");
+        if (pills.length > 1) for (let i = 1; i < pills.length; i++) pills[i].remove();
+      }
+    } catch {}
     card.appendChild(overlay);
   }
 
-  // Fullscreen (pass metadata so infobar can render)
+  // Fullscreen: pass the HIGH-RES url (item.url), thumb as fallback
   link.addEventListener("click", (e) => {
     e.preventDefault();
     if (!window.NBViewer || !NBViewer.open) return;
@@ -78,7 +94,6 @@ function cardForItem(item, onDeleted) {
       onDeleted: () => {
         if (typeof onDeleted === "function") onDeleted();
         if (card && card.parentNode) card.parentNode.removeChild(card);
-        ensureFilled(4);
       }
     });
   });
@@ -94,6 +109,7 @@ const seen = new Set();
 
 /* ========== Fetch & render page ========== */
 async function fetchPage() {
+  if (!grid || !sentinel) return;
   if (isLoading || isEnd) return;
   isLoading = true;
 
@@ -117,8 +133,8 @@ async function fetchPage() {
       const card = cardForItem(
         {
           id,
-          url: it.url || null,
-          thumbUrl: it.thumbUrl || null,
+          url: it.url || null,                 // HI-RES (fullscreen only)
+          thumbUrl: it.thumbUrl || null,       // Grid uses tiny->thumb swap
           tinyUrl: it.tinyUrl || null,
           createdAt: it.createdAt || null,
           type: it.type || null
@@ -127,6 +143,7 @@ async function fetchPage() {
       );
       frag.appendChild(card);
     }
+
     grid.appendChild(frag);
 
     cursor = next;
@@ -145,24 +162,35 @@ async function fetchPage() {
   }
 }
 
-/* ========== Fill viewport helper (works at all breakpoints) ========== */
-async function ensureFilled(maxLoops = 6) {
+/* ========== Startup prefill (only if page is shorter than viewport) ========== */
+const PREFILL_MAX_LOOPS = 2; // keep it small so we don't load "almost everything"
+async function ensureFilledOnceOrTwice() {
   let loops = 0;
-  while (!isEnd && !isLoading && (nearBottom(1400) || document.documentElement.scrollHeight <= window.innerHeight + 200) && loops < maxLoops) {
+  while (
+    !isEnd &&
+    !isLoading &&
+    document.documentElement.scrollHeight <= window.innerHeight + 80 &&
+    loops < PREFILL_MAX_LOOPS
+  ) {
     await fetchPage();
     loops++;
   }
 }
 
-/* ========== IntersectionObserver + scroll/resize fallback ========== */
+/* ========== IntersectionObserver + light scroll fallback ========== */
 let io = null;
 function setupObserver() {
+  if (!sentinel) return;
   if (io) io.disconnect();
-  io = new IntersectionObserver((entries) => {
-    for (const e of entries) {
-      if (e.isIntersecting) fetchPage();
-    }
-  }, { root: null, rootMargin: "1500px 0px", threshold: 0 });
+  io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) fetchPage();
+      }
+    },
+    // Smaller rootMargin so we fetch only a bit before the sentinel appears
+    { root: null, rootMargin: "300px 0px", threshold: 0 }
+  );
   io.observe(sentinel);
 }
 
@@ -172,37 +200,17 @@ function onScrollOrResize() {
   ticking = true;
   requestAnimationFrame(async () => {
     ticking = false;
-    if (nearBottom(1400)) await fetchPage();
-    await ensureFilled(2);
+    if (nearBottom(300)) await fetchPage();
   });
 }
 window.addEventListener("scroll", onScrollOrResize, { passive: true });
 window.addEventListener("resize", onScrollOrResize, { passive: true });
 window.addEventListener("orientationchange", onScrollOrResize);
 
-const mo = new MutationObserver(() => ensureFilled(2));
-mo.observe(grid, { childList: true, subtree: false });
-
-/* ========== Optional Refresh (if present) ========== */
-if (refreshBtn) {
-  refreshBtn.addEventListener("click", async () => {
-    grid.innerHTML = "";
-    empty.style.display = "none";
-    sentinel.style.display = "block";
-    seen.clear();
-    cursor = null;
-    isEnd = false;
-    isLoading = false;
-    setupObserver();
-    await fetchPage();
-    await ensureFilled(8);
-  });
-}
-
 /* ========== Kickoff ========== */
-setupObserver();
 (async () => {
-  await fetchPage();
-  await ensureFilled(8);
+  setupObserver();
+  await fetchPage();              // first page
+  await ensureFilledOnceOrTwice(); // at most one or two more if needed to fill viewport
   setEmptyVisibility();
 })();

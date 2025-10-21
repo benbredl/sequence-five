@@ -203,7 +203,9 @@
     return String(t);
   }
 
-  const STROKE_WIDTH = 1.2; // same for line & bar
+  // Stroke widths (bars intentionally thinner than the line)
+  const LINE_STROKE_WIDTH = 1.2;
+  const BAR_STROKE_WIDTH = 0.6;
 
   const commonOptions = {
     responsive: true,
@@ -263,7 +265,7 @@
             label: "Daily spend (EUR)",
             data: eurSeries,
             borderColor: COLORS.line,
-            borderWidth: STROKE_WIDTH,
+            borderWidth: LINE_STROKE_WIDTH,
             pointRadius: 2,
             pointHoverRadius: 3.5,
             tension: 0.25,
@@ -323,7 +325,7 @@
         datasets: [
           {
             data,
-            borderWidth: STROKE_WIDTH,
+            borderWidth: BAR_STROKE_WIDTH, // thinner than the line chart
             borderColor: COLORS.barBorder,
             backgroundColor: (c) => {
               const { chart } = c;

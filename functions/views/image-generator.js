@@ -7,7 +7,52 @@ export const HTML = [
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
   "<link rel='preconnect' href='https://firebasestorage.googleapis.com' crossorigin>",
   "<title>Sequence Five — Image Generator</title>",
-  "<style>", BASE_STYLES, "</style></head>",
+  "<style>", BASE_STYLES, `
+/* --- Generator-page-only tweaks --- */
+
+/* Force exactly 2 columns for the Results grid (independent of archive grid). */
+#resultsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* Make card tiles visually consistent with archive tiles if not already. */
+#resultsGrid .card-gal {
+  position: relative;
+}
+
+/* Progressive blur-up: start blurred, un-blur once .is-loaded is added (from JS). */
+img.blur-up {
+  filter: blur(14px);
+  transform: scale(1.02);
+  transition: filter .35s ease, transform .35s ease, opacity .35s ease;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+img.blur-up.is-loaded {
+  filter: blur(0);
+  transform: none;
+}
+
+/* Make the “Show all images” button match Usage buttons nicely */
+a#showAll.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: var(--glass1);
+  text-decoration: none;
+  font-weight: 500;
+  opacity: .88;
+}
+a#showAll.pill:hover { opacity: 1; }
+  `, "</style></head>",
   "<body>",
   "<div class='app'>",
 
@@ -29,7 +74,7 @@ export const HTML = [
           "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='7' rx='2'/><rect x='14' y='3' width='7' height='7' rx='2'/><rect x='14' y='14' width='7' height='7' rx='2'/><rect x='3' y='14' width='7' height='7' rx='2'/></svg>",
           "<span>Archive</span>",
         "</a>",
-        "<a href='/dashboard'>",
+        "<a href='/usage'>",
           "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 3v18h18'/><path d='M7 15l5-5 4 4 5-6'/></svg>",
           "<span>Usage</span>",
         "</a>",
@@ -46,7 +91,6 @@ export const HTML = [
 
         "<div class='headerbar'>",
           "<div class='hgroup'>",
-            // Match other pages: default weight (no forced bold), semi-bold feel is handled globally
             "<h1 style='font-weight:600'>Image Generator</h1>",
             "<div class='sub'>Text-to-image or image-to-image — unified clean flow.</div>",
           "</div>",
@@ -78,8 +122,11 @@ export const HTML = [
 
           "<div class='card'>",
             "<div class='row' style='justify-content:space-between'><strong>Results</strong></div>",
-            "<div id='resultsGrid' style='margin-top:12px;display:grid;gap:12px'></div>",
+            "<div id='resultsGrid' class='grid-gal' style='margin-top:12px'></div>",
             "<div id='empty' class='hint' style='font-size:12px'>No results yet.</div>",
+            "<div style='margin-top:12px;display:flex;justify-content:center'>",
+              "<a id='showAll' class='pill' href='/archive'>Show all images</a>",
+            "</div>",
           "</div>",
         "</div>",
 
