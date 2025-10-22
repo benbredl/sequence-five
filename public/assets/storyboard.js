@@ -7,7 +7,10 @@
    - Subtle blue pulse on reordered card
    - Status pill over image (bottom-left): base image / upscaled / video
    - CHANGE DETECTION: Only save when text actually changed (no change = no write/animation)
-   - NEW: "Generate description" button under the textarea; calls Gemini 2.5 Flash with image + text
+   - "Generate description" button under the textarea; calls Gemini 2.5 Flash with image + text
+   - NEW: 'Delete' button under 'Generate video' (visually distinct); removes shot from storyboard
+   - NEW: Make gap between description and its action button equal to image/description gap (16px)
+   - NEW: Drag icon sized via CSS to 30px (see CSS in functions/views/storyboard.js)
 */
 
 (function () {
@@ -104,9 +107,9 @@
     const saved = el('div', 'sb-saved');
     saved.innerHTML = TICK_SVG + "<span>Saved</span>";
 
-    // NEW: "Generate description" button under the input
+    // "Generate description" button under the input
     const genRow = el('div');
-    genRow.style.marginTop = '8px';
+    genRow.style.marginTop = '16px'; // match .sb-inner gap for consistent spacing
     const genBtn = el('button', 'btn-small');
     genBtn.textContent = 'Generate description';
     genBtn.title = 'Use image + storyboard context to generate a cinematic description';
@@ -197,10 +200,8 @@
 
         const newText = String(j.description || '').trim();
         if (newText) {
-          // Update textarea value and trigger autosave
           desc.value = newText;
-
-          // Dispatch an input event so our autosave machinery kicks in
+          // trigger autosave
           const ev = new Event('input', { bubbles: true });
           desc.dispatchEvent(ev);
         }
@@ -215,24 +216,52 @@
     rhs.appendChild(label);
     rhs.appendChild(desc);
     rhs.appendChild(saved);
-    rhs.appendChild(genRow); // <-- NEW: button under the input
+    rhs.appendChild(genRow); // button under the input
 
     inner.appendChild(media);
     inner.appendChild(rhs);
     card.appendChild(inner);
 
+    // Right column: action buttons
     const buttons = el('div', 'sb-buttons');
     const bUpscale = el('button', 'btn-small'); bUpscale.textContent = 'Upscale';
     const bVideo   = el('button', 'btn-small'); bVideo.textContent   = 'Generate video';
+    const bDelete  = el('button', 'btn-small btn-danger'); bDelete.textContent = 'Delete';
+
     bUpscale.onclick = () => alert('Upscale — coming soon');
     bVideo.onclick   = () => alert('Generate video — coming soon');
+
+    bDelete.onclick = async () => {
+      if (!confirm("Remove this shot from the storyboard?")) return;
+      try {
+        bDelete.disabled = true;
+        const r = await fetch('/api/storyboard/remove', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storyboardId, imageId: it.imageId })
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed to remove');
+        // Remove from DOM
+        if (row && row.parentNode) row.parentNode.removeChild(row);
+        // Toggle empty state if needed
+        const anyLeft = itemsWrap.querySelector('.sb-item');
+        if (!anyLeft && empty) empty.style.display = 'block';
+      } catch (err) {
+        alert(err.message || err);
+        bDelete.disabled = false;
+      }
+    };
+
     buttons.appendChild(bUpscale);
     buttons.appendChild(bVideo);
+    buttons.appendChild(bDelete); // visually different + below "Generate video"
 
     row.appendChild(rail);
     row.appendChild(card);
     row.appendChild(buttons);
 
+    // Drag-handle-only
     row.draggable = false;
     const enableDrag = () => { row.draggable = true; };
     const disableDrag = () => { row.draggable = false; };

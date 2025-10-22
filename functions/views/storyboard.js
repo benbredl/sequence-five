@@ -47,9 +47,9 @@ export const HTML = [
     align-self:stretch;
   }
 
-  /* Bigger, friendlier drag handle */
+  /* Bigger, friendlier drag handle (icon to 30px as requested) */
   .sb-handle{
-    width:22px; height:26px; border-radius:10px;
+    width:34px; height:40px; border-radius:12px;
     display:flex; align-items:center; justify-content:center;
     cursor:grab; user-select:none;
     color:#d8e0ff; opacity:.9;
@@ -57,7 +57,7 @@ export const HTML = [
     background:transparent;
   }
   .sb-handle:active{ cursor:grabbing; transform:scale(0.985); }
-  .sb-handle svg{ width:18px; height:18px; display:block; opacity:.95 }
+  .sb-handle svg{ width:30px; height:30px; display:block; opacity:.95 }
 
   /* Card layout */
   .sb-card{
@@ -70,7 +70,7 @@ export const HTML = [
   .sb-inner{
     display:grid;
     grid-template-columns:260px 1fr;
-    gap:16px;
+    gap:16px; /* this is the reference gap between image and description */
     align-items:stretch;
   }
   @media (max-width:1000px){ .sb-inner{ grid-template-columns:1fr; } }
@@ -80,6 +80,7 @@ export const HTML = [
     border-radius:14px; overflow:hidden;
     background:linear-gradient(180deg, var(--glass1), var(--glass2));
     border:1px solid var(--line-soft);
+    /* Keep the original intended framing — no change of image size here */
     aspect-ratio:16/9;
     width:100%;
   }
@@ -125,24 +126,37 @@ export const HTML = [
   .sb-saved.show{ opacity:1; }
   .sb-saved svg{ width:14px; height:14px; display:block }
 
+  /* Action buttons column */
   .sb-buttons{
-    display:flex; flex-direction:column; gap:8px;
+    display:flex; flex-direction:column; gap:10px;
     align-items:stretch;
     justify-content:center;
     align-self:center;
     margin-top:0;
   }
+
+  /* Smaller, subtler buttons */
   .btn-small{
-    background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
     border:1px solid var(--line-soft);
     color:#d7dbff;
     border-radius:10px;
-    padding:8px 10px;
+    padding:6px 10px;         /* smaller */
     font-weight:600;
-    font-size:12px;
+    font-size:11.5px;         /* smaller, more subtle */
     cursor:pointer;
+    box-shadow:none;
   }
+  .btn-small:hover{ filter:brightness(1.04) }
   .btn-small:disabled{ opacity:.6; cursor:not-allowed }
+
+  /* Visually different 'Delete' action (below Generate video) */
+  .btn-danger{
+    background:linear-gradient(180deg, rgba(255,80,80,.14), rgba(255,80,80,.06));
+    border:1px solid rgba(255,96,96,.35);
+    color:#ffb0b0;
+  }
+  .btn-danger:hover{ filter:brightness(1.06) }
 
   .dragging{ opacity:.65; transform:scale(.998); }
   .drop-placeholder{
