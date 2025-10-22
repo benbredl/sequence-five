@@ -13,6 +13,7 @@
    - NEW: Drag icon sized via CSS to 30px (see CSS in functions/views/storyboard.js)
    - UPDATE: Inline "Saved" indicator placed next to the 'Generate description' button
    - UPDATE: Remove textarea min-height (handled in CSS)
+   - NEW: Click image to open fullscreen viewer
 */
 
 (function () {
@@ -93,6 +94,21 @@
     const pill = el('div', 'sb-pill');
     pill.textContent = stateToLabel(it);
     media.appendChild(pill);
+
+    // Open fullscreen on click (use high-res if available)
+    media.addEventListener('click', () => {
+      const full = it.url || it.thumbUrl;
+      if (!full) return;
+      if (window.NBViewer && typeof NBViewer.open === 'function') {
+        NBViewer.open(full, {
+          imageId: it.imageId,
+          createdAt: it.addedAt || undefined,
+          type: it.state || 'base-image'
+        });
+      } else {
+        window.open(full, '_blank', 'noopener,noreferrer');
+      }
+    });
 
     const rhs = el('div', 'sb-right');
     const label = el('div', 'sb-desc-label');

@@ -83,8 +83,22 @@ export const HTML = [
     /* Keep the original intended framing — no change of image size here */
     aspect-ratio:16/9;
     width:100%;
+    cursor: zoom-in; /* clicking opens fullscreen */
   }
   .sb-media img{ width:100%; height:100%; object-fit:cover; display:block }
+
+  /* Shot state pill: subtle, white border, non-bold, always visible, bottom-left */
+  .sb-pill{
+    position:absolute; left:8px; bottom:8px;
+    display:inline-flex; align-items:center; gap:6px;
+    padding:2px 8px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.8);
+    background:rgba(0,0,0,.24);
+    color:#fff;
+    font-size:11px; font-weight:400; letter-spacing:.2px;
+    pointer-events:none; /* don’t block the click-to-open */
+  }
 
   .sb-right{ display:flex; flex-direction:column; min-height:0; }
 
@@ -209,7 +223,7 @@ export const HTML = [
           "<span>Image Generator</span>",
         "</a>",
         "<a class='active' href='/storyboards'>",
-          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15V6a2 2 0 0 0-2-2H6'/><path d='M3 7v11a2 2 0  0 0 2 2h11'/><rect x='7' y='7' width='10' height='10' rx='2'/></svg>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15V6a2 2 0 0 0-2-2H6'/><path d='M3 7v11a2 2 0 0 0 2 2h11'/><rect x='7' y='7' width='10' height='10' rx='2'/></svg>",
           "<span>Storyboards</span>",
         "</a>",
         "<a href='/archive'>",
@@ -241,6 +255,7 @@ export const HTML = [
     "</main>",
   "</div>",
 
+  "<script src='/assets/nbviewer.js'></script>",
   "<script src='/assets/storyboard.js'></script>",
   "</body></html>"
 ].join("");
