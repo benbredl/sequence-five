@@ -101,14 +101,13 @@ export const HTML = [
     border:1px solid var(--line-soft);
     border-radius:14px;
     padding:12px 14px;
-    font-size:14px;
+    font-size:12px;
     outline:none;
-    min-height:64px;
     resize:vertical;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
     transition:border-color .25s ease, box-shadow .2s, background .2s;
     flex:1;
-    min-height:120px;
+    min-height:20px;
   }
   .sb-desc::placeholder{ opacity:.55; }
 
@@ -119,12 +118,16 @@ export const HTML = [
     background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035));
   }
 
+  /* Inline "Saved" indicator — sits beside the button */
   .sb-saved{
-    font-size:11px; color:#9fc29f; margin-top:6px; opacity:.0; transition:opacity .2s ease;
-    display:flex; align-items:center; gap:6px;
+    font-size:11px; color:#9fc29f; opacity:.0; transition:opacity .2s ease;
+    display:inline-flex; align-items:center; gap:6px; margin:0 0 0 10px;
   }
   .sb-saved.show{ opacity:1; }
   .sb-saved svg{ width:14px; height:14px; display:block }
+
+  /* Button row (Generate description + inline Saved) */
+  .sb-actions{ display:flex; align-items:center; gap:8px; margin-top:16px; }
 
   /* Action buttons column */
   .sb-buttons{
@@ -206,7 +209,7 @@ export const HTML = [
           "<span>Image Generator</span>",
         "</a>",
         "<a class='active' href='/storyboards'>",
-          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15V6a2 2 0 0 0-2-2H6'/><path d='M3 7v11a2 2 0 0 0 2 2h11'/><rect x='7' y='7' width='10' height='10' rx='2'/></svg>",
+          "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15V6a2 2 0 0 0-2-2H6'/><path d='M3 7v11a2 2 0  0 0 2 2h11'/><rect x='7' y='7' width='10' height='10' rx='2'/></svg>",
           "<span>Storyboards</span>",
         "</a>",
         "<a href='/archive'>",

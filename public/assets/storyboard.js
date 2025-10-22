@@ -11,6 +11,8 @@
    - NEW: 'Delete' button under 'Generate video' (visually distinct); removes shot from storyboard
    - NEW: Make gap between description and its action button equal to image/description gap (16px)
    - NEW: Drag icon sized via CSS to 30px (see CSS in functions/views/storyboard.js)
+   - UPDATE: Inline "Saved" indicator placed next to the 'Generate description' button
+   - UPDATE: Remove textarea min-height (handled in CSS)
 */
 
 (function () {
@@ -104,16 +106,17 @@
 
     let lastSavedValue = dbDescription;
 
-    const saved = el('div', 'sb-saved');
-    saved.innerHTML = TICK_SVG + "<span>Saved</span>";
-
-    // "Generate description" button under the input
-    const genRow = el('div');
-    genRow.style.marginTop = '16px'; // match .sb-inner gap for consistent spacing
+    // "Generate description" button under the input — with inline "Saved" indicator
+    const genRow = el('div', 'sb-actions');
     const genBtn = el('button', 'btn-small');
     genBtn.textContent = 'Generate description';
     genBtn.title = 'Use image + storyboard context to generate a cinematic description';
+
+    const saved = el('div', 'sb-saved');
+    saved.innerHTML = TICK_SVG + "<span>Saved</span>";
+
     genRow.appendChild(genBtn);
+    genRow.appendChild(saved);
 
     let debounceTimer = null;
     let lastInputAt = 0;
@@ -215,8 +218,7 @@
 
     rhs.appendChild(label);
     rhs.appendChild(desc);
-    rhs.appendChild(saved);
-    rhs.appendChild(genRow); // button under the input
+    rhs.appendChild(genRow); // button + inline "Saved"
 
     inner.appendChild(media);
     inner.appendChild(rhs);
