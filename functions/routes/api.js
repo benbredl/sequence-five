@@ -14,7 +14,8 @@ import {
   removeFromStoryboard,
   deleteStoryboard,
   reorderStoryboardItem,
-  updateStoryboardItemDescription
+  updateStoryboardItemDescription,
+  generateStoryboardItemDescription, // NEW
 } from "../controllers/storyboards.controller.js";
 
 const router = Router();
@@ -37,11 +38,14 @@ router.post("/api/storyboard/add", a(addToStoryboard));
 router.post("/api/storyboard/remove", a(removeFromStoryboard));
 router.post("/api/storyboard/delete", a(deleteStoryboard));
 
-// Save description (new)
+// Save description (existing)
 router.post("/api/storyboard/update", a(updateStoryboardItemDescription));
 
 // NEW: reorder item (save on drop)
 router.post("/api/storyboard/reorder", a(reorderStoryboardItem));
+
+// NEW: generate description (text+image to Gemini)
+router.post("/api/storyboard/generate-description", a(generateStoryboardItemDescription));
 
 // Billing
 router.get("/api/billing/summary", a(getSummary));

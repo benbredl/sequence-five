@@ -7,14 +7,15 @@
    - Subtle blue pulse on reordered card
    - Status pill over image (bottom-left): base image / upscaled / video
    - CHANGE DETECTION: Only save when text actually changed (no change = no write/animation)
+   - NEW: "Generate description" button under the textarea; calls Gemini 2.5 Flash with image + text
 */
 
 (function () {
   const $ = (id) => document.getElementById(id);
   const el = (t, c) => { const n = document.createElement(t); if (c) n.className = c; return n; };
   const GAP = 1000;
-  const AUTOSAVE_IDLE_MS = 1200;      // >= 1s idle before saving/animating
-  const MIN_IDLE_ON_BLUR_MS = 1000;   // ensure at least 1s idle on blur
+  const AUTOSAVE_IDLE_MS = 1200;
+  const MIN_IDLE_ON_BLUR_MS = 1000;
 
   if (!window.NBViewer) {
     window.NBViewer = {
@@ -53,7 +54,6 @@
   }
 
   function stateToLabel(it){
-    // Prefer explicit state, then booleans, default base image
     const s = (it.state || '').toLowerCase();
     if (s === 'video') return 'video';
     if (s === 'upscaled') return 'upscaled';
@@ -68,20 +68,16 @@
     row.dataset.imageId = it.imageId;
     if (it.orderIndex != null) row.dataset.orderIndex = String(it.orderIndex);
 
-    // Column 1: rail + handle
     const rail = el('div', 'sb-rail');
     const handle = el('div', 'sb-handle');
     handle.innerHTML = HANDLE_SVG;
     handle.title = 'Drag to reorder';
     rail.appendChild(handle);
 
-    // Column 2: card
     const card = el('div', 'sb-card');
     const inner = el('div', 'sb-inner');
 
     const media = el('div', 'sb-media');
-
-    // Image
     const img = new Image();
     img.alt = 'storyboard item';
     img.loading = 'lazy';
@@ -89,7 +85,6 @@
     img.src = it.thumbUrl || it.url;
     media.appendChild(img);
 
-    // Status pill (bottom-left)
     const pill = el('div', 'sb-pill');
     pill.textContent = stateToLabel(it);
     media.appendChild(pill);
@@ -101,29 +96,30 @@
     const desc = el('textarea', 'sb-desc');
     desc.placeholder = 'Describe the shot, movement, framing, intent…';
 
-    // Initial value from DB
     const dbDescription = (it.description || '').trim();
     desc.value = dbDescription;
 
-    // Track last saved value to avoid redundant writes/animations
     let lastSavedValue = dbDescription;
 
     const saved = el('div', 'sb-saved');
     saved.innerHTML = TICK_SVG + "<span>Saved</span>";
 
-    // Debounced autosave with guaranteed >= 1s idle
+    // NEW: "Generate description" button under the input
+    const genRow = el('div');
+    genRow.style.marginTop = '8px';
+    const genBtn = el('button', 'btn-small');
+    genBtn.textContent = 'Generate description';
+    genBtn.title = 'Use image + storyboard context to generate a cinematic description';
+    genRow.appendChild(genBtn);
+
     let debounceTimer = null;
     let lastInputAt = 0;
-
     const normalize = (v) => (v == null ? '' : String(v)).replace(/\r\n/g, '\n').trim();
 
     async function saveDescription(valRaw) {
       const val = normalize(valRaw);
-
-      // Guard: only save if actually changed vs lastSavedValue
       if (val === lastSavedValue) return;
-
-      desc.classList.add('saving'); // start subtle blue recolor (single border)
+      desc.classList.add('saving');
       try {
         const r = await fetch('/api/storyboard/update', {
           method: 'POST',
@@ -133,7 +129,6 @@
         if (!r.ok) {
           console.error('[description save] HTTP', r.status);
         } else {
-          // Only update lastSavedValue on success
           lastSavedValue = val;
           saved.classList.add('show');
           setTimeout(() => saved.classList.remove('show'), 1100);
@@ -141,26 +136,19 @@
       } catch (e) {
         console.error('[description save] failed', e);
       } finally {
-        // allow users to notice completion briefly, then stop
         setTimeout(() => desc.classList.remove('saving'), 150);
       }
     }
 
     const scheduleAutosave = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-
-      // If nothing changed, don't schedule anything
-      if (normalize(desc.value) === lastSavedValue) {
-        return;
-      }
-
+      if (normalize(desc.value) === lastSavedValue) return;
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
-        // Re-check right before saving to avoid stale writes
         if (normalize(desc.value) !== lastSavedValue) {
           saveDescription(desc.value);
         }
-      }, AUTOSAVE_IDLE_MS); // waits >= 1s
+      }, AUTOSAVE_IDLE_MS);
     };
 
     desc.addEventListener('input', () => {
@@ -168,39 +156,71 @@
       scheduleAutosave();
     });
 
-    // On blur, ensure we've been idle at least 1s before saving/animating,
-    // but only if there are unsaved changes.
     desc.addEventListener('blur', () => {
       const pendingVal = normalize(desc.value);
       if (pendingVal === lastSavedValue) {
-        // No change since last save—cancel any pending timers and ensure no animation.
         if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
         desc.classList.remove('saving');
         return;
       }
-
       const elapsed = Date.now() - lastInputAt;
       const waitMore = Math.max(0, MIN_IDLE_ON_BLUR_MS - elapsed);
-
       if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
-
       setTimeout(() => {
-        // Final guard in case user reverted quickly
         if (normalize(desc.value) !== lastSavedValue) {
           saveDescription(desc.value);
         }
       }, waitMore);
     });
 
+    // Click handler: generate description via API
+    genBtn.addEventListener('click', async () => {
+      try {
+        genBtn.disabled = true;
+        const prev = genBtn.textContent;
+        genBtn.textContent = 'Generating…';
+
+        // Use current textarea value; server will also read storyboard description & image
+        const body = {
+          storyboardId,
+          imageId: it.imageId,
+          shotDescription: String(desc.value || '')
+        };
+
+        const r = await fetch('/api/storyboard/generate-description', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed to generate');
+
+        const newText = String(j.description || '').trim();
+        if (newText) {
+          // Update textarea value and trigger autosave
+          desc.value = newText;
+
+          // Dispatch an input event so our autosave machinery kicks in
+          const ev = new Event('input', { bubbles: true });
+          desc.dispatchEvent(ev);
+        }
+        genBtn.textContent = prev;
+      } catch (e) {
+        alert(e.message || e);
+      } finally {
+        genBtn.disabled = false;
+      }
+    });
+
     rhs.appendChild(label);
     rhs.appendChild(desc);
     rhs.appendChild(saved);
+    rhs.appendChild(genRow); // <-- NEW: button under the input
 
     inner.appendChild(media);
     inner.appendChild(rhs);
     card.appendChild(inner);
 
-    // Column 3: buttons
     const buttons = el('div', 'sb-buttons');
     const bUpscale = el('button', 'btn-small'); bUpscale.textContent = 'Upscale';
     const bVideo   = el('button', 'btn-small'); bVideo.textContent   = 'Generate video';
@@ -209,12 +229,10 @@
     buttons.appendChild(bUpscale);
     buttons.appendChild(bVideo);
 
-    // Compose row
     row.appendChild(rail);
     row.appendChild(card);
     row.appendChild(buttons);
 
-    // Enable dragging only via handle
     row.draggable = false;
     const enableDrag = () => { row.draggable = true; };
     const disableDrag = () => { row.draggable = false; };
@@ -222,7 +240,6 @@
     handle.addEventListener('touchstart', enableDrag, { passive: true });
     row.addEventListener('dragend', disableDrag);
 
-    // Visual state on drag
     row.addEventListener('dragstart', (e) => {
       row.classList.add('dragging');
       if (e.dataTransfer) {
@@ -352,6 +369,9 @@
       const desc = el('div', 'head-desc');
       desc.textContent = j.description || '';
       headCard.appendChild(desc);
+
+      // expose storyboard meta for client (optional)
+      window.__storyboardMeta = { id: storyboardId, description: (j.description || '') };
 
       itemsWrap.innerHTML = '';
       const arr = Array.isArray(j.items) ? j.items : [];

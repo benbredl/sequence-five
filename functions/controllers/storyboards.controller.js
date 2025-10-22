@@ -1,6 +1,8 @@
 // functions/controllers/storyboards.controller.js
-import { db } from "../firebase.js";
+import { db, bucket } from "../firebase.js";
 import { bad, err, ok } from "../utils/http.js";
+import { I2V_SYSTEM_PROMPT } from "../config.js";
+import { describeWithImage } from "../services/describe.js";
 
 const GAP = 1000;
 
@@ -50,7 +52,7 @@ export async function listStoryboards(_req, res) {
   }
 }
 
-// Get storyboard + items (with image joins) — order by orderIndex ASC (then addedAt DESC as tiebreaker)
+// Get storyboard + items (with image joins)
 export async function getStoryboard(req, res) {
   try {
     const id = String(req.query.id || "").trim();
@@ -62,9 +64,6 @@ export async function getStoryboard(req, res) {
 
     const sb = sbDoc.data() || {};
 
-    // Prefer orderIndex asc; add tiebreaker on addedAt desc
-    // Firestore requires composite index for this pair; if you haven't added yet,
-    // you can temporarily drop the secondary orderBy or add the suggested index.
     let itemsSnap;
     try {
       itemsSnap = await sbRef
@@ -100,8 +99,8 @@ export async function getStoryboard(req, res) {
       return {
         imageId: d.id,
         orderIndex: itemData.orderIndex ?? null,
-        state: itemData.state || "base-image", // default state
-        description: itemData.description || "", // <-- include saved description
+        state: itemData.state || "base-image",
+        description: itemData.description || "",
         addedAt: itemData.addedAt?.toDate
           ? itemData.addedAt.toDate().toISOString()
           : itemData.addedAt || null,
@@ -128,7 +127,7 @@ export async function getStoryboard(req, res) {
   }
 }
 
-// Add image to storyboard — assign large-gap orderIndex and initial state
+// Add image to storyboard
 export async function addToStoryboard(req, res) {
   try {
     const { storyboardId, imageId } = req.body || {};
@@ -144,7 +143,6 @@ export async function addToStoryboard(req, res) {
     const imgDoc = await imgRef.get();
     if (!imgDoc.exists) return err(res, new Error("Image not found"), 404);
 
-    // Find current max orderIndex and add GAP
     const qs = await sbRef.collection("items").orderBy("orderIndex", "desc").limit(1).get();
     const max = !qs.empty ? (Number(qs.docs[0].data().orderIndex) || 0) : 0;
     const orderIndex = (Number.isFinite(max) ? max : 0) + GAP;
@@ -271,5 +269,56 @@ export async function updateStoryboardItemDescription(req, res) {
     return ok(res, { ok: true });
   } catch (e) {
     return err(res, e);
+  }
+}
+
+/**
+ * NEW: Generate a cinematic shot description using Gemini 2.5 Flash (text) with image input.
+ * - Combines storyboard description + current shot description (if any) + the item's image
+ * - Returns { description, modelUsed }
+ *
+ * Body: { storyboardId: string, imageId: string, shotDescription?: string }
+ */
+export async function generateStoryboardItemDescription(req, res) {
+  try {
+    const { storyboardId, imageId, shotDescription } = req.body || {};
+    if (!storyboardId || !imageId) return bad(res, "storyboardId and imageId required");
+
+    // Load storyboard
+    const sbRef = db.collection("storyboards").doc(String(storyboardId));
+    const sbDoc = await sbRef.get();
+    if (!sbDoc.exists) return err(res, new Error("Storyboard not found"), 404);
+    const storyboard = sbDoc.data() || {};
+
+    // Load image doc
+    const imgRef = db.collection("images").doc(String(imageId));
+    const imgDoc = await imgRef.get();
+    if (!imgDoc.exists) return err(res, new Error("Image not found"), 404);
+    const img = imgDoc.data() || {};
+    const path = img.path;
+    const mimeType = img.mimeType || "image/png";
+    if (!path) return err(res, new Error("Image has no storage path"), 400);
+
+    // Read image bytes from GCS and encode base64 for Gemini inlineData
+    const [buffer] = await bucket.file(path).download();
+    const base64 = buffer.toString("base64");
+
+    // Build the fixed JSON text prompt
+    // If shotDescription is empty -> omit it (model sees just storyboard+image)
+    const payload = {
+      storyboard_description: String(storyboard.description || "").trim(),
+      shot_description_input: String(shotDescription || "").trim(),
+      instruction: "Generate one polished image-to-video prompt (3–6 sentences) covering camera movement, subject motion, lighting/atmosphere, and tone. Return ONLY the final prose, no meta."
+    };
+
+    const { text, modelUsed } = await describeWithImage({
+      systemPrompt: I2V_SYSTEM_PROMPT,
+      image: { mimeType, base64 },
+      jsonTextPrompt: JSON.stringify(payload, null, 2)
+    });
+
+    return ok(res, { description: text, modelUsed });
+  } catch (e) {
+    return err(res, e, 500, "generate_description_failed");
   }
 }
