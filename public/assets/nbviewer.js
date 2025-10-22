@@ -48,7 +48,16 @@
       ".gal-bottombar{position:absolute;left:12px;right:12px;bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:auto}" +
       ".gal-meta{display:flex;align-items:center;gap:8px}" +
       ".gal-actions{display:flex;align-items:center;gap:4px}" +
-      ".gal-ts{font-size:11px;color:#e6e9ff;opacity:.92}" ;
+      ".gal-ts{font-size:11px;color:#e6e9ff;opacity:.92}" +
+
+      /* --- Nice confirm modal --- */
+      ".nbv-confirm-back{position:fixed;inset:0;background:rgba(6,8,18,.62);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:10003}" +
+      ".nbv-confirm{width:min(520px,92vw);background:rgba(18,22,38,.82);border:1px solid rgba(71,80,124,.8);border-radius:16px;box-shadow:0 24px 80px rgba(2,6,23,.65), inset 0 1px 0 rgba(255,255,255,.06);padding:16px;color:#e6e9ff}" +
+      ".nbv-confirm h3{margin:0 0 8px 0;font-size:18px}" +
+      ".nbv-confirm p{margin:0 0 12px 0;color:#c7ceed;font-size:13px;line-height:1.4}" +
+      ".nbv-confirm .row{display:flex;gap:8px;justify-content:flex-end}" +
+      ".nbv-btn{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid #2f375a;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));color:#c7ceed;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer}" +
+      ".nbv-btn.danger{border-color:rgba(255,96,96,.35);background:linear-gradient(180deg,rgba(255,80,80,.14),rgba(255,80,80,.06));color:#ffb0b0}";
     const st = document.createElement("style");
     st.id = "viewer-style";
     st.appendChild(document.createTextNode(css));
@@ -88,6 +97,17 @@
     }
   }
 
+  function formatTsForFilename(d) {
+    const x = d instanceof Date ? d : new Date(d);
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, "0");
+    const day = String(x.getDate()).padStart(2, "0");
+    const hh = String(x.getHours()).padStart(2, "0");
+    const mm = String(x.getMinutes()).padStart(2, "0");
+    const ss = String(x.getSeconds()).padStart(2, "0");
+    return `${y}${m}${day}_${hh}${mm}${ss}`;
+  }
+
   function computeFitSize(aspect, maxW, maxH) {
     if (!aspect || !isFinite(aspect) || aspect <= 0) return null;
     const wByH = maxH * aspect;
@@ -107,7 +127,7 @@
       const a = document.createElement("a");
       const u = URL.createObjectURL(b);
       a.href = u;
-      a.download = name || "image.png";
+      a.download = name || "image.jpg";
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -117,12 +137,41 @@
     } catch {
       const a = document.createElement("a");
       a.href = url;
-      a.setAttribute("download", "image");
+      a.setAttribute("download", name || "image.jpg");
       a.target = "_self";
       document.body.appendChild(a);
       a.click();
       a.remove();
     }
+  }
+
+  // Nice confirm modal
+  function niceConfirm({ title = "Are you sure?", message = "", confirmText = "Delete", cancelText = "Cancel", danger = true } = {}) {
+    return new Promise((resolve) => {
+      const back = document.createElement("div");
+      back.className = "nbv-confirm-back";
+      const sheet = document.createElement("div");
+      sheet.className = "nbv-confirm";
+      sheet.innerHTML =
+        `<h3>${title}</h3>` +
+        `<p>${message}</p>` +
+        `<div class="row">` +
+        `<button class="nbv-btn">${cancelText}</button>` +
+        `<button class="nbv-btn ${danger ? "danger" : ""}">${confirmText}</button>` +
+        `</div>`;
+      back.appendChild(sheet);
+      document.body.appendChild(back);
+
+      const [btnCancel, btnOk] = sheet.querySelectorAll(".nbv-btn");
+
+      function close(val) {
+        if (back.parentNode) back.parentNode.removeChild(back);
+        resolve(val);
+      }
+      back.addEventListener("click", (e) => { if (e.target === back) close(false); });
+      btnCancel.addEventListener("click", () => close(false));
+      btnOk.addEventListener("click", () => close(true));
+    });
   }
 
   // State/Type label formatter (prefer state, fallback to type)
@@ -289,7 +338,13 @@
     bDown.className = "icon-btn";
     bDown.title = "Download";
     bDown.innerHTML = SVG_DOWNLOAD;
-    bDown.onclick = (e) => { e.stopPropagation(); forceDownload(url); };
+    bDown.onclick = (e) => {
+      e.stopPropagation();
+      const created = opts.createdAt ? new Date(opts.createdAt) : new Date();
+      const fname = `GeneratedImage_${formatTsForFilename(created)}.jpg`;
+      // Always prefer the full-res URL (the one passed to open)
+      forceDownload(url, fname);
+    };
 
     const bAdd = document.createElement("button");
     bAdd.className = "icon-btn";
@@ -308,7 +363,14 @@
     if (opts.imageId) {
       bDel.onclick = async (e) => {
         e.stopPropagation();
-        if (!confirm("Delete this image everywhere? This cannot be undone.")) return;
+        const ok = await niceConfirm({
+          title: "Delete image",
+          message: "Delete this image everywhere? This cannot be undone.",
+          confirmText: "Delete",
+          cancelText: "Cancel",
+          danger: true
+        });
+        if (!ok) return;
         bDel.disabled = true;
         try {
           const r = await fetch("/api/image/delete", {
@@ -407,7 +469,7 @@
     document.addEventListener("keydown", onKey);
   }
 
-  // ----- Card hover overlay (unchanged) -----
+  // ----- Card hover overlay -----
   function attachHoverOverlay(cardEl, imgUrlLike, item, onDeleted) {
     injectStyle();
     const imgUrl = normalizeUrl(imgUrlLike);
@@ -436,7 +498,14 @@
     aDown.className = "icon-btn";
     aDown.innerHTML = SVG_DOWNLOAD;
     aDown.title = "Download";
-    aDown.onclick = (e) => { e.stopPropagation(); if (imgUrl) forceDownload(imgUrl); };
+    aDown.onclick = (e) => {
+      e.stopPropagation();
+      // Prefer the high-res URL if provided in meta
+      const hiUrl = (item && (item.fullUrl || item.archiveUrl)) || imgUrl;
+      const created = item?.createdAt ? new Date(item.createdAt) : new Date();
+      const fname = `GeneratedImage_${formatTsForFilename(created)}.jpg`;
+      if (hiUrl) forceDownload(hiUrl, fname);
+    };
 
     const aAdd = document.createElement("button");
     aAdd.className = "icon-btn";
@@ -451,7 +520,14 @@
     aDel.onclick = async (e) => {
       e.stopPropagation();
       if (!item || !item.id) return;
-      if (!confirm("Delete this image everywhere?")) return;
+      const ok = await niceConfirm({
+        title: "Delete image",
+        message: "Delete this image everywhere? This cannot be undone.",
+        confirmText: "Delete",
+        cancelText: "Cancel",
+        danger: true
+      });
+      if (!ok) return;
       aDel.disabled = true;
       try {
         const r = await fetch("/api/image/delete", {

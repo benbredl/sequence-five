@@ -1,4 +1,3 @@
-// public/assets/archive.js
 // Archive page with tiny (blur-up) -> thumbnail swap,
 // fullscreen now receives lowSrc + aspect to avoid layout shift.
 // Uses "state" (not "type") in the overlay and fullscreen meta.
@@ -69,7 +68,12 @@ function cardForItem(item, onDeleted) {
     const overlay = NBViewer.attachHoverOverlay(
       card,
       item.thumbUrl || item.url || "",
-      { id: item.id, createdAt: item.createdAt, state: item.state || "base-image" },
+      {
+        id: item.id,
+        createdAt: item.createdAt,
+        state: item.state || "base-image",
+        fullUrl: item.url || null       // <-- provide hi-res URL for downloads
+      },
       onDeleted
     );
     try {

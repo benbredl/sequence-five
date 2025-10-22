@@ -52,6 +52,9 @@ a#showAll.pill {
   opacity: .88;
 }
 a#showAll.pill:hover { opacity: 1; }
+
+/* Prompt font-size override (12px as requested) */
+#prompt { font-size: 12px; }
   `, "</style></head>",
   "<body>",
   "<div class='app'>",

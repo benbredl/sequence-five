@@ -44,6 +44,14 @@
         background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%);
       }
 
+      /* Subtle flash when enhanced text arrives */
+      @keyframes ig-prompt-flash {
+        0%   { box-shadow: 0 0 0 0 rgba(79,141,253,0); border-color: var(--line-soft); }
+        20%  { box-shadow: 0 0 0 2px rgba(79,141,253,.45); border-color: rgba(79,141,253,.85); }
+        100% { box-shadow: 0 0 0 0 rgba(79,141,253,0); border-color: var(--line-soft); }
+      }
+      #prompt.ig-updated { animation: ig-prompt-flash 1.2s ease-out 1; }
+
       img.blur-up { filter: blur(14px); transform: scale(1.02); transition: filter .35s ease, transform .35s ease, opacity .35s ease; display: block; width: 100%; height: auto; object-fit: cover; }
       img.blur-up.is-loaded { filter: blur(0); transform: none; }
     `;
@@ -198,7 +206,7 @@
       const overlay = NBViewer.attachHoverOverlay(
         card,
         thumbUrl || url || "",
-        { id, createdAt, state },
+        { id, createdAt, state, fullUrl: url || null }, // <-- provide hi-res URL for downloads
         onDeleted
       );
       card.appendChild(overlay);
@@ -287,7 +295,9 @@
         {
           id: meta.id,
           createdAt: meta.createdAt ? meta.createdAt.toISOString() : new Date().toISOString(),
-          state: meta.state || "base-image"
+          state: meta.state || "base-image",
+          archiveUrl: meta.archiveUrl || null,
+          fullUrl: meta.archiveUrl || null // ensure hi-res downloads even before refresh
         },
         meta.onDeleted
       );
@@ -308,6 +318,13 @@
       });
       // Replace the input with the enhanced text ONLY because user asked for it.
       promptEl.value = String(j.enhancedPrompt || text);
+      // Subtle indicator flash (similar idea to storyboard blue cue)
+      promptEl.classList.remove("ig-updated"); // restart animation if clicked twice
+      // force reflow to replay keyframes
+      // eslint-disable-next-line no-unused-expressions
+      promptEl.offsetWidth;
+      promptEl.classList.add("ig-updated");
+      setTimeout(() => promptEl.classList.remove("ig-updated"), 1300);
     } catch (e) { alert(e.message || e); }
     finally { enhanceBtn.disabled = false; }
   });
