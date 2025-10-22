@@ -12,6 +12,8 @@ export const HTML = [
   "<style>",
   BASE_STYLES,
   `
+  :root{ --accent-blue:#4F8DFD; }
+
   .nav-brand .nav-title{ font-weight:600; }
   .headerbar .hgroup h1{ font-weight:600; }
 
@@ -22,8 +24,9 @@ export const HTML = [
   }
   .sb-list::before{
     content:"";
-    position:absolute; top:0; bottom:0; left:13px; width:2px;
-    background:rgba(79,141,253,.18);
+    position:absolute; top:0; bottom:0; left:13px;
+    width:1.2px;                               /* same width feel as card border */
+    background:var(--line-soft);               /* same color as card border */
     pointer-events:none;
   }
 
@@ -33,32 +36,30 @@ export const HTML = [
     grid-template-columns:28px 1fr auto;
     gap:16px;
     margin:18px 0;
-    /* keep items stretching to the tallest element (the card);
-       we'll center the rail + buttons with align-self */
     align-items:stretch;
   }
 
   .sb-rail{
     position:relative;
     display:flex;
-    align-items:center;           /* center handle vertically inside the rail */
+    align-items:center;
     justify-content:center;
-    align-self:stretch;           /* make rail match the card's height */
+    align-self:stretch;
   }
 
-  /* Drag handle replaces the dot */
+  /* Bigger, friendlier drag handle */
   .sb-handle{
-    width:18px; height:22px; border-radius:8px;
+    width:22px; height:26px; border-radius:10px;
     display:flex; align-items:center; justify-content:center;
     cursor:grab; user-select:none;
     color:#d8e0ff; opacity:.9;
     transition: transform .12s ease, background .12s ease, opacity .12s ease;
     background:transparent;
   }
-  .sb-handle:active{ cursor:grabbing; transform:scale(0.98); }
-  .sb-handle svg{ width:14px; height:14px; display:block; opacity:.95 }
+  .sb-handle:active{ cursor:grabbing; transform:scale(0.985); }
+  .sb-handle svg{ width:18px; height:18px; display:block; opacity:.95 }
 
-  /* Card layout — smaller image, wider description */
+  /* Card layout */
   .sb-card{
     border-radius:22px;
     padding:16px;
@@ -68,9 +69,9 @@ export const HTML = [
   }
   .sb-inner{
     display:grid;
-    grid-template-columns:260px 1fr; /* small media like storyboards page */
+    grid-template-columns:260px 1fr;
     gap:16px;
-    align-items:start;
+    align-items:stretch;
   }
   @media (max-width:1000px){ .sb-inner{ grid-template-columns:1fr; } }
 
@@ -84,7 +85,8 @@ export const HTML = [
   }
   .sb-media img{ width:100%; height:100%; object-fit:cover; display:block }
 
-  /* Description label + input */
+  .sb-right{ display:flex; flex-direction:column; min-height:0; }
+
   .sb-desc-label{
     color:var(--muted);
     font-size:12px;
@@ -103,12 +105,19 @@ export const HTML = [
     min-height:64px;
     resize:vertical;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
-    transition:box-shadow .2s,border-color .2s;
+    transition:border-color .25s ease, box-shadow .2s, background .2s;
+    flex:1;
+    min-height:120px;
   }
+  .sb-desc::placeholder{ opacity:.55; }
+
+  /* Focus: keep it white (no blue second border) */
   .sb-desc:focus{
-    border-color:var(--line);
-    box-shadow:0 0 0 3px rgba(79,141,253,.22);
+    border-color:rgba(255,255,255,.60);
+    box-shadow:none;
+    background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035));
   }
+
   .sb-saved{
     font-size:11px; color:#9fc29f; margin-top:6px; opacity:.0; transition:opacity .2s ease;
     display:flex; align-items:center; gap:6px;
@@ -116,13 +125,12 @@ export const HTML = [
   .sb-saved.show{ opacity:1; }
   .sb-saved svg{ width:14px; height:14px; display:block }
 
-  /* Buttons column (to the right of card) */
   .sb-buttons{
     display:flex; flex-direction:column; gap:8px;
     align-items:stretch;
-    justify-content:center;       /* center buttons vertically in the row */
-    align-self:center;            /* vertically center this column vs the card */
-    margin-top:0;                 /* was pushing buttons upward */
+    justify-content:center;
+    align-self:center;
+    margin-top:0;
   }
   .btn-small{
     background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
@@ -136,13 +144,37 @@ export const HTML = [
   }
   .btn-small:disabled{ opacity:.6; cursor:not-allowed }
 
-  /* Drag & drop visuals */
   .dragging{ opacity:.65; transform:scale(.998); }
   .drop-placeholder{
     border:2px dashed rgba(79,141,253,.45);
     border-radius:14px;
-    height:72px; /* compact placeholder */
+    height:72px;
     margin:10px 0;
+  }
+
+  /* Subtle blue cues */
+  @keyframes sb-borderColorPulseDesc {
+    0%   { border-color: var(--line-soft); }
+    18%  { border-color: rgba(79,141,253,.85); }
+    100% { border-color: var(--line-soft); }
+  }
+  .sb-desc.saving,
+  .sb-desc.saving:focus{
+    animation: sb-borderColorPulseDesc 1.2s ease-out infinite;
+    border-color: rgba(79,141,253,.85);
+    box-shadow:none;
+  }
+
+  @keyframes sb-borderPulseCard {
+    0%   { box-shadow: inset 0 0 0 0 rgba(79,141,253,0); }
+    12%  { box-shadow: inset 0 0 0 1.6px rgba(79,141,253,.55); }
+    100% { box-shadow: inset 0 0 0 0 rgba(79,141,253,0); }
+  }
+  .sb-card.reordered{ animation: sb-borderPulseCard 1s ease-out 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sb-desc.saving,
+    .sb-card.reordered{ animation: none; }
   }
   `,
   "</style></head>",

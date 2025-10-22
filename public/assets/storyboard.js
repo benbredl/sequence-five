@@ -1,14 +1,20 @@
 /* public/assets/storyboard.js
    - Handle-only drag & drop reordering (large-gap indices)
    - Container-based DnD for reliability
-   - DESCRIPTION FIX: textarea now reads/writes item.description (not prompt)
-   - Autosave description with small "Saved" tick
+   - DESCRIPTION FIX: textarea reads/writes item.description
+   - Autosave description with subtle border-color pulse (no double border)
+   - Enforce >= 1s idle before autosave/indicators (incl. blur)
+   - Subtle blue pulse on reordered card
+   - Status pill over image (bottom-left): base image / upscaled / video
+   - CHANGE DETECTION: Only save when text actually changed (no change = no write/animation)
 */
 
 (function () {
   const $ = (id) => document.getElementById(id);
   const el = (t, c) => { const n = document.createElement(t); if (c) n.className = c; return n; };
   const GAP = 1000;
+  const AUTOSAVE_IDLE_MS = 1200;      // >= 1s idle before saving/animating
+  const MIN_IDLE_ON_BLUR_MS = 1000;   // ensure at least 1s idle on blur
 
   if (!window.NBViewer) {
     window.NBViewer = {
@@ -36,6 +42,27 @@
   const TICK_SVG = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
   const HANDLE_SVG = "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><circle cx='7' cy='6' r='1.4'/><circle cx='12' cy='6' r='1.4'/><circle cx='17' cy='6' r='1.4'/><circle cx='7' cy='12' r='1.4'/><circle cx='12' cy='12' r='1.4'/><circle cx='17' cy='12' r='1.4'/><circle cx='7' cy='18' r='1.4'/><circle cx='12' cy='18' r='1.4'/><circle cx='17' cy='18' r='1.4'/></svg>";
 
+  function indicateReordered(cardEl) {
+    if (!cardEl) return;
+    cardEl.classList.remove('reordered');
+    // force reflow
+    // eslint-disable-next-line no-unused-expressions
+    cardEl.offsetWidth;
+    cardEl.classList.add('reordered');
+    setTimeout(() => cardEl.classList.remove('reordered'), 1200);
+  }
+
+  function stateToLabel(it){
+    // Prefer explicit state, then booleans, default base image
+    const s = (it.state || '').toLowerCase();
+    if (s === 'video') return 'video';
+    if (s === 'upscaled') return 'upscaled';
+    if (s === 'base' || s === 'base-image' || s === 'base image') return 'base image';
+    if (it.isVideo) return 'video';
+    if (it.isUpscaled) return 'upscaled';
+    return 'base image';
+  }
+
   function makeItem(it) {
     const row = el('div', 'sb-item');
     row.dataset.imageId = it.imageId;
@@ -53,6 +80,8 @@
     const inner = el('div', 'sb-inner');
 
     const media = el('div', 'sb-media');
+
+    // Image
     const img = new Image();
     img.alt = 'storyboard item';
     img.loading = 'lazy';
@@ -60,47 +89,107 @@
     img.src = it.thumbUrl || it.url;
     media.appendChild(img);
 
-    const rhs = el('div');
+    // Status pill (bottom-left)
+    const pill = el('div', 'sb-pill');
+    pill.textContent = stateToLabel(it);
+    media.appendChild(pill);
+
+    const rhs = el('div', 'sb-right');
     const label = el('div', 'sb-desc-label');
     label.textContent = 'Shot description';
 
     const desc = el('textarea', 'sb-desc');
     desc.placeholder = 'Describe the shot, movement, framing, intent…';
 
-    // ***** DESCRIPTION FIX: prefer DB field, not prompt *****
+    // Initial value from DB
     const dbDescription = (it.description || '').trim();
     desc.value = dbDescription;
 
-    // Saved tick
+    // Track last saved value to avoid redundant writes/animations
+    let lastSavedValue = dbDescription;
+
     const saved = el('div', 'sb-saved');
     saved.innerHTML = TICK_SVG + "<span>Saved</span>";
 
-    // Debounced autosave to description endpoint
+    // Debounced autosave with guaranteed >= 1s idle
     let debounceTimer = null;
-    async function saveDescription(val) {
+    let lastInputAt = 0;
+
+    const normalize = (v) => (v == null ? '' : String(v)).replace(/\r\n/g, '\n').trim();
+
+    async function saveDescription(valRaw) {
+      const val = normalize(valRaw);
+
+      // Guard: only save if actually changed vs lastSavedValue
+      if (val === lastSavedValue) return;
+
+      desc.classList.add('saving'); // start subtle blue recolor (single border)
       try {
-        await fetch('/api/storyboard/update', {
+        const r = await fetch('/api/storyboard/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ storyboardId, imageId: it.imageId, description: val })
         });
-        saved.classList.add('show');
-        setTimeout(() => saved.classList.remove('show'), 1100);
+        if (!r.ok) {
+          console.error('[description save] HTTP', r.status);
+        } else {
+          // Only update lastSavedValue on success
+          lastSavedValue = val;
+          saved.classList.add('show');
+          setTimeout(() => saved.classList.remove('show'), 1100);
+        }
       } catch (e) {
         console.error('[description save] failed', e);
+      } finally {
+        // allow users to notice completion briefly, then stop
+        setTimeout(() => desc.classList.remove('saving'), 150);
       }
     }
 
-    desc.addEventListener('input', () => {
-      const val = desc.value;
+    const scheduleAutosave = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => saveDescription(val), 450);
+
+      // If nothing changed, don't schedule anything
+      if (normalize(desc.value) === lastSavedValue) {
+        return;
+      }
+
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        // Re-check right before saving to avoid stale writes
+        if (normalize(desc.value) !== lastSavedValue) {
+          saveDescription(desc.value);
+        }
+      }, AUTOSAVE_IDLE_MS); // waits >= 1s
+    };
+
+    desc.addEventListener('input', () => {
+      lastInputAt = Date.now();
+      scheduleAutosave();
     });
 
-    // Also save on blur just in case user types and clicks away very quickly
+    // On blur, ensure we've been idle at least 1s before saving/animating,
+    // but only if there are unsaved changes.
     desc.addEventListener('blur', () => {
+      const pendingVal = normalize(desc.value);
+      if (pendingVal === lastSavedValue) {
+        // No change since last save—cancel any pending timers and ensure no animation.
+        if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+        desc.classList.remove('saving');
+        return;
+      }
+
+      const elapsed = Date.now() - lastInputAt;
+      const waitMore = Math.max(0, MIN_IDLE_ON_BLUR_MS - elapsed);
+
       if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
-      saveDescription(desc.value);
+
+      setTimeout(() => {
+        // Final guard in case user reverted quickly
+        if (normalize(desc.value) !== lastSavedValue) {
+          saveDescription(desc.value);
+        }
+      }, waitMore);
     });
 
     rhs.appendChild(label);
@@ -155,7 +244,7 @@
     return row;
   }
 
-  /* ---------- Drag & Drop (container-based) ---------- */
+  /* Drag & Drop (container-based) */
   let draggingEl = null;
   let placeholder = null;
 
@@ -178,7 +267,7 @@
       const offset = y - (box.top + box.height / 2);
       if (offset < 0 && offset > closest.offset) closest = { el: node, offset };
     }
-    return closest.el; // element that comes AFTER the placeholder
+    return closest.el;
   }
 
   itemsWrap.addEventListener('dragover', (e) => {
@@ -206,7 +295,6 @@
       placeholder = null;
     }
 
-    // Compute neighbors
     const prev = draggingEl.previousElementSibling && draggingEl.previousElementSibling.classList.contains('sb-item')
       ? draggingEl.previousElementSibling
       : null;
@@ -231,6 +319,9 @@
 
     draggingEl.dataset.orderIndex = String(newOrder);
 
+    const card = draggingEl.querySelector('.sb-card');
+    indicateReordered(card);
+
     try {
       const imageId = draggingEl.dataset.imageId;
       await fetch('/api/storyboard/reorder', {
@@ -246,7 +337,7 @@
     }
   });
 
-  /* ---------- Load data ---------- */
+  /* Load data */
   async function load() {
     headCard.innerHTML = "<div class='hint'><span class='spinner'></span> Loading…</div>";
     try {
