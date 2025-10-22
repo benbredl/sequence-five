@@ -1,20 +1,6 @@
 /* public/assets/storyboard.js
-   - Handle-only drag & drop reordering (large-gap indices)
-   - Container-based DnD for reliability
-   - DESCRIPTION FIX: textarea reads/writes item.description
-   - Autosave description with subtle border-color pulse (no double border)
-   - Enforce >= 1s idle before autosave/indicators (incl. blur)
-   - Subtle blue pulse on reordered card
-   - Status pill over image (bottom-left): base image / upscaled / video
-   - CHANGE DETECTION: Only save when text actually changed (no change = no write/animation)
-   - "Generate description" button under the textarea; calls Gemini 2.5 Flash with image + text
-   - NEW: 'Delete' button under 'Generate video' (visually distinct); removes shot from storyboard
-   - NEW: Make gap between description and its action button equal to image/description gap (16px)
-   - NEW: Drag icon sized via CSS to 30px (see CSS in functions/views/storyboard.js)
-   - UPDATE: Inline "Saved" indicator placed next to the 'Generate description' button
-   - UPDATE: Remove textarea min-height (handled in CSS)
-   - NEW: Click image to open fullscreen viewer
-   - FIX: Use blur-up tiny->thumb progressive loading for storyboard thumbnails
+   (…existing features…)
+   + Fullscreen blur-up: pass the decoded thumbnail <img> to NBViewer.open
 */
 
 (function () {
@@ -50,7 +36,7 @@
   const TICK_SVG = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
   const HANDLE_SVG = "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><circle cx='7' cy='6' r='1.4'/><circle cx='12' cy='6' r='1.4'/><circle cx='17' cy='6' r='1.4'/><circle cx='7' cy='12' r='1.4'/><circle cx='12' cy='12' r='1.4'/><circle cx='17' cy='12' r='1.4'/><circle cx='7' cy='18' r='1.4'/><circle cx='12' cy='18' r='1.4'/><circle cx='17' cy='18' r='1.4'/></svg>";
 
-  /* ---------- Progressive images (tiny -> thumb) ---------- */
+  /* Progressive images (tiny -> thumb) */
   function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }) {
     const img = document.createElement("img");
     img.decoding = "async";
@@ -122,13 +108,12 @@
 
     const media = el('div', 'sb-media');
 
-    // --- FIX: Use progressive blur-up image (tiny -> thumb) ---
+    // Progressive blur-up thumbnail
     const img = createProgressiveImage({
       tinyUrl: it.tinyUrl || null,
       thumbUrl: it.thumbUrl || it.url || null,
       alt: "storyboard item"
     });
-    // .sb-media CSS already sets width/height/object-fit for child img
     media.appendChild(img);
 
     const pill = el('div', 'sb-pill');
@@ -139,11 +124,20 @@
     media.addEventListener('click', () => {
       const full = it.url || it.thumbUrl;
       if (!full) return;
+
+      // aspect from the image we already have in the card
+      const aspect =
+        (img.naturalWidth && img.naturalHeight)
+          ? (img.naturalWidth / img.naturalHeight)
+          : (img.clientWidth && img.clientHeight ? img.clientWidth / img.clientHeight : null);
+
       if (window.NBViewer && typeof NBViewer.open === 'function') {
         NBViewer.open(full, {
           imageId: it.imageId,
           createdAt: it.addedAt || undefined,
-          type: it.state || 'base-image'
+          type: it.state || 'base-image',
+          lowSrc: it.thumbUrl || it.tinyUrl || null,
+          aspect: aspect || null
         });
       } else {
         window.open(full, '_blank', 'noopener,noreferrer');
@@ -162,14 +156,13 @@
 
     let lastSavedValue = dbDescription;
 
-    // "Generate description" button under the input — with inline "Saved" indicator
     const genRow = el('div', 'sb-actions');
     const genBtn = el('button', 'btn-small');
     genBtn.textContent = 'Generate description';
     genBtn.title = 'Use image + storyboard context to generate a cinematic description';
 
     const saved = el('div', 'sb-saved');
-    saved.innerHTML = TICK_SVG + "<span>Saved</span>";
+    saved.innerHTML = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg><span>Saved</span>";
 
     genRow.appendChild(genBtn);
     genRow.appendChild(saved);
@@ -235,14 +228,12 @@
       }, waitMore);
     });
 
-    // Click handler: generate description via API
     genBtn.addEventListener('click', async () => {
       try {
         genBtn.disabled = true;
         const prev = genBtn.textContent;
         genBtn.textContent = 'Generating…';
 
-        // Use current textarea value; server will also read storyboard description & image
         const body = {
           storyboardId,
           imageId: it.imageId,
@@ -260,7 +251,6 @@
         const newText = String(j.description || '').trim();
         if (newText) {
           desc.value = newText;
-          // trigger autosave
           const ev = new Event('input', { bubbles: true });
           desc.dispatchEvent(ev);
         }
@@ -274,13 +264,12 @@
 
     rhs.appendChild(label);
     rhs.appendChild(desc);
-    rhs.appendChild(genRow); // button + inline "Saved"
+    rhs.appendChild(genRow);
 
     inner.appendChild(media);
     inner.appendChild(rhs);
     card.appendChild(inner);
 
-    // Right column: action buttons
     const buttons = el('div', 'sb-buttons');
     const bUpscale = el('button', 'btn-small'); bUpscale.textContent = 'Upscale';
     const bVideo   = el('button', 'btn-small'); bVideo.textContent   = 'Generate video';
@@ -300,9 +289,7 @@
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || 'Failed to remove');
-        // Remove from DOM
         if (row && row.parentNode) row.parentNode.removeChild(row);
-        // Toggle empty state if needed
         const anyLeft = itemsWrap.querySelector('.sb-item');
         if (!anyLeft && empty) empty.style.display = 'block';
       } catch (err) {
@@ -313,7 +300,7 @@
 
     buttons.appendChild(bUpscale);
     buttons.appendChild(bVideo);
-    buttons.appendChild(bDelete); // visually different + below "Generate video"
+    buttons.appendChild(bDelete);
 
     row.appendChild(rail);
     row.appendChild(card);
@@ -457,7 +444,6 @@
       desc.textContent = j.description || '';
       headCard.appendChild(desc);
 
-      // expose storyboard meta for client (optional)
       window.__storyboardMeta = { id: storyboardId, description: (j.description || '') };
 
       itemsWrap.innerHTML = '';

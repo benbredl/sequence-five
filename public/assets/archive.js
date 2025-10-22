@@ -1,6 +1,6 @@
 // public/assets/archive.js
 // Archive page with tiny (blur-up) -> thumbnail swap,
-// fullscreen uses only the high-res URL, and tamed infinite scroll.
+// fullscreen now receives lowSrc + aspect to avoid layout shift.
 
 /* ========== DOM helpers ========== */
 const $ = (id) => document.getElementById(id);
@@ -50,7 +50,7 @@ function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }) {
   return img;
 }
 
-/* ========== Card renderer (single type pill, hi-res only in fullscreen) ========== */
+/* ========== Card renderer (pass lowSrc + aspect to fullscreen) ========== */
 function cardForItem(item, onDeleted) {
   const card = el("div", "card-gal");
   card.style.position = "relative";
@@ -64,7 +64,7 @@ function cardForItem(item, onDeleted) {
   link.appendChild(img);
   card.appendChild(link);
 
-  // Attach hover overlay (download / add / delete) + meta
+  // Hover overlay (no change)
   if (window.NBViewer && typeof NBViewer.attachHoverOverlay === "function") {
     const overlay = NBViewer.attachHoverOverlay(
       card,
@@ -72,7 +72,6 @@ function cardForItem(item, onDeleted) {
       { id: item.id, createdAt: item.createdAt, type: item.type },
       onDeleted
     );
-    // Ensure only one type pill
     try {
       const metaRow = overlay && overlay.querySelector(".gal-meta");
       if (metaRow) {
@@ -83,31 +82,33 @@ function cardForItem(item, onDeleted) {
     card.appendChild(overlay);
   }
 
-  // Fullscreen: pass the HIGH-RES url (item.url), thumb as fallback
   link.addEventListener("click", (e) => {
     e.preventDefault();
     if (!window.NBViewer || !NBViewer.open) return;
+
+    // Compute an aspect ratio from the image we already have (no extra reads)
+    const aspect = (img.naturalWidth && img.naturalHeight)
+      ? (img.naturalWidth / img.naturalHeight)
+      : (img.clientWidth && img.clientHeight ? img.clientWidth / img.clientHeight : null);
+
     NBViewer.open(item.url || item.thumbUrl, {
       imageId: item.id,
       createdAt: item.createdAt,
       type: item.type,
-      onDeleted: () => {
-        if (typeof onDeleted === "function") onDeleted();
-        if (card && card.parentNode) card.parentNode.removeChild(card);
-      }
+      lowSrc: item.thumbUrl || item.tinyUrl || null,  // show blurred first
+      aspect: aspect || null                           // lock size → no shift
     });
   });
 
   return card;
 }
 
-/* ========== Paging state ========== */
+/* ========== Paging state & fetch (unchanged except for renderer) ========== */
 let cursor = null;
 let isLoading = false;
 let isEnd = false;
 const seen = new Set();
 
-/* ========== Fetch & render page ========== */
 async function fetchPage() {
   if (!grid || !sentinel) return;
   if (isLoading || isEnd) return;
@@ -133,8 +134,8 @@ async function fetchPage() {
       const card = cardForItem(
         {
           id,
-          url: it.url || null,                 // HI-RES (fullscreen only)
-          thumbUrl: it.thumbUrl || null,       // Grid uses tiny->thumb swap
+          url: it.url || null,
+          thumbUrl: it.thumbUrl || null,
           tinyUrl: it.tinyUrl || null,
           createdAt: it.createdAt || null,
           type: it.type || null
@@ -162,8 +163,8 @@ async function fetchPage() {
   }
 }
 
-/* ========== Startup prefill (only if page is shorter than viewport) ========== */
-const PREFILL_MAX_LOOPS = 2; // keep it small so we don't load "almost everything"
+/* ========== IO + kickoff (unchanged) ========== */
+const PREFILL_MAX_LOOPS = 2;
 async function ensureFilledOnceOrTwice() {
   let loops = 0;
   while (
@@ -177,7 +178,6 @@ async function ensureFilledOnceOrTwice() {
   }
 }
 
-/* ========== IntersectionObserver + light scroll fallback ========== */
 let io = null;
 function setupObserver() {
   if (!sentinel) return;
@@ -188,7 +188,6 @@ function setupObserver() {
         if (e.isIntersecting) fetchPage();
       }
     },
-    // Smaller rootMargin so we fetch only a bit before the sentinel appears
     { root: null, rootMargin: "300px 0px", threshold: 0 }
   );
   io.observe(sentinel);
@@ -207,10 +206,9 @@ window.addEventListener("scroll", onScrollOrResize, { passive: true });
 window.addEventListener("resize", onScrollOrResize, { passive: true });
 window.addEventListener("orientationchange", onScrollOrResize);
 
-/* ========== Kickoff ========== */
 (async () => {
   setupObserver();
-  await fetchPage();              // first page
-  await ensureFilledOnceOrTwice(); // at most one or two more if needed to fill viewport
+  await fetchPage();
+  await ensureFilledOnceOrTwice();
   setEmptyVisibility();
 })();

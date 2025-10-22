@@ -1,8 +1,5 @@
 // public/assets/image-generator.js
-// Generator page logic:
-// - 2-up grid, blur-up tiny->thumb swap
-// - Overlay now delegated entirely to NBViewer.attachHoverOverlay (no heavy tweaking)
-// - Dropzone & prompt focus niceties maintained
+// Generator page logic (unchanged behaviors + fullscreen blur-up via NBViewer.open with previewEl)
 
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -28,64 +25,30 @@
   let inProgress = 0;
   let currentUpload = null;
 
-  /* -------------------- Inject small UI styles -------------------- */
   (function injectLocalStyles() {
     const styleId = "ig-light-styles";
     if (document.getElementById(styleId)) return;
     const s = document.createElement("style");
     s.id = styleId;
     s.textContent = `
-      /* Drop hover/drag */
-      #${drop ? drop.id : "drop"} {
-        transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .12s ease;
-        will-change: background-color, border-color, box-shadow, transform;
-      }
+      #${drop ? drop.id : "drop"} { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .12s ease; will-change: background-color, border-color, box-shadow, transform; }
       #${drop ? drop.id : "drop"}:hover { cursor: pointer; }
-      #${drop ? drop.id : "drop"}.is-hover:not(.has-upload) {
-        background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%);
-        border-color: color-mix(in oklab, var(--line-soft) 60%, white);
-        box-shadow: 0 2px 12px rgba(0,0,0,.10), inset 0 0 0 1px rgba(255,255,255,.04);
-        transform: translateY(-1px);
-      }
-      #${drop ? drop.id : "drop"}.is-drag:not(.has-upload) {
-        background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-        border-style: dashed;
-        border-color: color-mix(in oklab, var(--brand, #7c8cff) 50%, white 20%);
-        box-shadow: 0 0 0 3px rgba(124,140,255,.15), 0 8px 24px rgba(0,0,0,.20);
-      }
+      #${drop ? drop.id : "drop"}.is-hover:not(.has-upload) { background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%); border-color: color-mix(in oklab, var(--line-soft) 60%, white); box-shadow: 0 2px 12px rgba(0,0,0,.10), inset 0 0 0 1px rgba(255,255,255,.04); transform: translateY(-1px); }
+      #${drop ? drop.id : "drop"}.is-drag:not(.has-upload) { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border-style: dashed; border-color: color-mix(in oklab, var(--brand, #7c8cff) 50%, white 20%); box-shadow: 0 0 0 3px rgba(124,140,255,.15), 0 8px 24px rgba(0,0,0,.20); }
 
-      /* Prompt white-focus ring */
-      #prompt, input#prompt, textarea#prompt {
-        transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
-      }
-      #prompt:focus, #prompt:focus-visible,
-      input#prompt:focus, input#prompt:focus-visible,
-      textarea#prompt:focus, textarea#prompt:focus-visible {
-        outline: none !important;
-        border-color: color-mix(in oklab, var(--line-soft) 60%, white);
-        box-shadow:
-          0 2px 12px rgba(0,0,0,.10),
-          inset 0 0 0 1px rgba(255,255,255,.04),
-          0 0 0 3px rgba(255,255,255,.14);
+      #prompt, input#prompt, textarea#prompt { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
+      #prompt:focus, #prompt:focus-visible, input#prompt:focus, input#prompt:focus-visible, textarea#prompt:focus, textarea#prompt:focus-visible {
+        outline: none !important; border-color: color-mix(in oklab, var(--line-soft) 60%, white);
+        box-shadow: 0 2px 12px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.04), 0 0 0 3px rgba(255,255,255,.14);
         background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%);
       }
 
-      /* Progressive blur-up */
-      img.blur-up {
-        filter: blur(14px);
-        transform: scale(1.02);
-        transition: filter .35s ease, transform .35s ease, opacity .35s ease;
-        display: block;
-        width: 100%;
-        height: auto;
-        object-fit: cover;
-      }
+      img.blur-up { filter: blur(14px); transform: scale(1.02); transition: filter .35s ease, transform .35s ease, opacity .35s ease; display: block; width: 100%; height: auto; object-fit: cover; }
       img.blur-up.is-loaded { filter: blur(0); transform: none; }
     `;
     document.head.appendChild(s);
   })();
 
-  /* -------------------- Utilities -------------------- */
   function setInProgress(n) {
     inProgress = Math.max(0, n);
     if (inprogEl) inprogEl.textContent = String(inProgress);
@@ -117,7 +80,6 @@
     });
   }
 
-  /* -------------------- Upload area -------------------- */
   async function handleFile(file) {
     if (!file || !/^image\//.test(file.type)) { alert("Please choose an image file."); return; }
     const dataUrl = await readFileAsDataUrl(file);
@@ -179,7 +141,6 @@
   });
   removeUpload && removeUpload.addEventListener("click", clearUpload);
 
-  /* -------------------- Progressive tiny -> thumb -------------------- */
   function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }, onSettled) {
     const img = document.createElement("img");
     img.decoding = "async";
@@ -232,7 +193,6 @@
     link.appendChild(img);
     card.appendChild(link);
 
-    // Overlay: use NBViewer directly (no tweaks)
     if (window.NBViewer && typeof NBViewer.attachHoverOverlay === "function") {
       const overlay = NBViewer.attachHoverOverlay(
         card,
@@ -243,17 +203,27 @@
       card.appendChild(overlay);
     }
 
-    // Fullscreen
+    // Fullscreen — pass lowSrc (thumb) and aspect from the tile we already have
     link.addEventListener("click", (e) => {
       e.preventDefault();
       if (!window.NBViewer || !NBViewer.open) return;
-      NBViewer.open(url || thumbUrl, { imageId: id, createdAt, type });
+
+      const aspect = (img.naturalWidth && img.naturalHeight)
+        ? (img.naturalWidth / img.naturalHeight)
+        : (img.clientWidth && img.clientHeight ? img.clientWidth / img.clientHeight : null);
+
+      NBViewer.open(url || thumbUrl, {
+        imageId: id,
+        createdAt,
+        type,
+        lowSrc: thumbUrl || tinyUrl || null,
+        aspect: aspect || null
+      });
     });
 
     return card;
   }
 
-  /* -------------------- Preload last 5 images into results -------------------- */
   async function preloadLastFive() {
     try {
       const r = await fetch("/api/archive?limit=6");
@@ -281,7 +251,6 @@
     }
   }
 
-  /* -------------------- Generate flow -------------------- */
   function skeletonTile() {
     const card = createEl("div", "card-gal");
     card.style.position = "relative";
@@ -395,6 +364,7 @@
         const full = archiveUrl || objUrl;
         if (window.NBViewer && typeof NBViewer.open === "function") {
           NBViewer.open(full, {
+            previewEl: img,          // pass preview for fullscreen blur-up
             imageId: id || null,
             createdAt: new Date(),
             type: generationType
@@ -413,7 +383,6 @@
     }
   });
 
-  // Initial state
   showEmptyIfNeeded();
   preloadLastFive();
 

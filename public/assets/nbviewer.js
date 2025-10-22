@@ -1,4 +1,3 @@
-// public/assets/nbviewer.js
 (() => {
   if (window.NBViewer) return;
 
@@ -14,36 +13,34 @@
   function injectStyle() {
     if (document.getElementById("viewer-style")) return;
     const css =
-      /* Fullscreen viewer container */
+      /* Backdrop & wrap */
       ".viewer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;animation:vbIn .18s ease forwards}" +
       "@keyframes vbIn{to{opacity:1}}" +
       ".viewer-wrap{position:relative;display:inline-block;max-width:92vw;max-height:92vh}" +
-      ".viewer-img{max-width:92vw;max-height:92vh;border-radius:18px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);transition:filter .18s ease;display:block}" +
+      /* Image fills the *fixed* wrap size we compute upfront (prevents layout shift) */
+      ".viewer-img{width:100%;height:100%;object-fit:contain;border-radius:18px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);transition:filter .18s ease;display:block}" +
+      ".viewer-img.blur-up{filter:blur(14px);transform:translateZ(0)}" +
+      ".viewer-img.is-sharp{filter:none}" +
       ".viewer-backdrop.blurred .viewer-img{filter:blur(10px) brightness(.65)}" +
 
       /* Fullscreen bottom bars */
       ".viewer-bottombar{position:absolute;right:16px;bottom:12px;display:flex;gap:4px;align-items:center;z-index:3}" +
       ".viewer-actions{display:flex;gap:4px;align-items:center}" +
 
-      /* Icon buttons: white icons only, no border, tighter footprint */
       ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;outline:none;background:transparent;padding:0;margin:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff;box-shadow:none}" +
       ".icon-btn[disabled]{opacity:.5;cursor:not-allowed}" +
       ".icon-btn:hover{filter:brightness(1.08)}" +
       ".icon-btn:active{transform:translateY(1px)}" +
       ".icon-btn svg{width:16px;height:16px;display:block}" +
 
-      /* Fullscreen infobar (bottom gradient) with side padding/gutters */
+      /* Infobar */
       ".viewer-infobar{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:2;background:linear-gradient(0deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%)}" +
       ".viewer-info-left{display:flex;align-items:center;gap:10px;font-size:12px;color:#e6e9ff;opacity:.95}" +
-
-      /* Timestamp + resolution in modal share the same small look */
       ".viewer-ts{font-size:11px;color:#e6e9ff;opacity:.95}" +
       ".viewer-res{font-size:11px;color:#e6e9ff;opacity:.9}" +
-
-      /* Fullscreen type pill: white border, white text, non-bold */
       ".viewer-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid rgba(255,255,255,.8);background:transparent;color:#ffffff;padding:2px 8px;font-size:11px;font-weight:400;letter-spacing:.2px;text-transform:none;opacity:.95}" +
 
-      /* --- Grid overlay: full-cover gradient + bottom bar --- */
+      /* Grid overlay (unchanged) */
       ".gal-overlay{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 70%, rgba(0,0,0,.85) 100%);pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .12s ease, transform .12s ease}" +
       ".gal-bottombar{position:absolute;left:12px;right:12px;bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:auto}" +
       ".gal-meta{display:flex;align-items:center;gap:8px}" +
@@ -55,7 +52,6 @@
     document.head.appendChild(st);
   }
 
-  // Ensure styles are present ASAP (prevents initial large timestamp flash)
   injectStyle();
 
   // ----- Helpers -----
@@ -89,6 +85,17 @@
     }
   }
 
+  function computeFitSize(aspect, maxW, maxH) {
+    if (!aspect || !isFinite(aspect) || aspect <= 0) return null;
+    const wByH = maxH * aspect;
+    if (wByH <= maxW) {
+      return { width: Math.floor(wByH), height: Math.floor(maxH) };
+    } else {
+      const hByW = maxW / aspect;
+      return { width: Math.floor(maxW), height: Math.floor(hByW) };
+    }
+  }
+
   async function forceDownload(url, name) {
     try {
       const r = await fetch(url, { mode: "cors" });
@@ -115,7 +122,7 @@
     }
   }
 
-  // ----- Storyboard picker -----
+  // ----- Storyboard picker (unchanged) -----
   function openPicker(imageId, backdropEl) {
     const back = document.createElement("div");
     back.style.cssText =
@@ -180,24 +187,54 @@
       });
   }
 
-  // ----- Fullscreen viewer with infobar (timestamp + resolution + type) -----
+  // ----- Fullscreen viewer (blur-up + fixed sizing) -----
+  /**
+   * open(urlLike, {
+   *   imageId?, createdAt?, type?,
+   *   lowSrc?: string,                 // thumbnail/tiny already decoded in grid
+   *   aspect?: number,                 // known aspect ratio; if absent we infer after hi-res load
+   * })
+   */
   function open(urlLike, opts) {
     injectStyle();
     const url = normalizeUrl(urlLike);
     if (!url) return;
 
     opts = opts || {};
+    const lowSrc = typeof opts.lowSrc === "string" ? opts.lowSrc : null;
+    const knownAspect = Number(opts.aspect || 0) > 0 ? Number(opts.aspect) : null;
+
     const back = document.createElement("div");
     back.className = "viewer-backdrop";
 
     const wrap = document.createElement("div");
     wrap.className = "viewer-wrap";
 
+    // Size the wrap *before* we show the image to avoid any jump.
+    // If we know the aspect, compute a fixed width/height that fits 92vw/92vh.
+    const maxW = Math.floor(window.innerWidth * 0.92);
+    const maxH = Math.floor(window.innerHeight * 0.92);
+    if (knownAspect) {
+      const sz = computeFitSize(knownAspect, maxW, maxH);
+      if (sz) {
+        wrap.style.width = sz.width + "px";
+        wrap.style.height = sz.height + "px";
+      }
+    }
+
     const img = document.createElement("img");
     img.className = "viewer-img";
     img.alt = "preview";
     img.decoding = "async";
-    img.src = url;
+
+    // Start with the low-res (if provided), blurred
+    if (lowSrc) {
+      img.src = lowSrc;
+      img.classList.add("blur-up");
+    } else {
+      // If no lowSrc, we still reserve space; hi-res will fill in
+      img.src = url;
+    }
 
     // --- Infobar (timestamp, resolution, type) ---
     const infobar = document.createElement("div");
@@ -212,20 +249,19 @@
 
     const res = document.createElement("span");
     res.className = "viewer-res";
-    res.textContent = ""; // filled on load
+    res.textContent = ""; // will be filled from the **high-res** file
 
     const pill = document.createElement("span");
     pill.className = "viewer-pill";
     pill.textContent = (opts.type || "").toLowerCase();
 
-    // left group: timestamp + resolution + type pill
     if (ts.textContent) infoLeft.appendChild(ts);
     infoLeft.appendChild(res);
     if (pill.textContent) infoLeft.appendChild(pill);
 
     infobar.appendChild(infoLeft);
 
-    // --- Bottom-right actions bar (download / add / delete) ---
+    // --- Bottom-right actions bar ---
     const bottombar = document.createElement("div");
     bottombar.className = "viewer-bottombar";
 
@@ -287,9 +323,50 @@
     back.appendChild(wrap);
     document.body.appendChild(back);
 
-    // Fill resolution once the image loads
+    // Once the **high-res** is decoded, swap the src and remove blur.
+    const hi = new Image();
+    hi.decoding = "async";
+    hi.src = url;
+
+    const revealHi = () => {
+      // If we didn't know the aspect earlier, lock it now using hi-res intrinsic size.
+      if (!knownAspect && hi.naturalWidth && hi.naturalHeight) {
+        const aspect = hi.naturalWidth / hi.naturalHeight;
+        const sz = computeFitSize(aspect, maxW, maxH);
+        if (sz) {
+          wrap.style.width = sz.width + "px";
+          wrap.style.height = sz.height + "px";
+        }
+      }
+      // Swap pixels & un-blur
+      if (img.src !== url) img.src = url;
+      img.classList.remove("blur-up");
+      img.classList.add("is-sharp");
+
+      // Resolution from the actual file — no DB reads
+      if (hi.naturalWidth && hi.naturalHeight) {
+        res.textContent = `${hi.naturalWidth}×${hi.naturalHeight}`;
+      }
+      if (!opts.createdAt) ts.textContent = formatTimestamp(new Date());
+    };
+
+    // Read resolution from hi-res (even if we started with lowSrc)
+    const setResFromHi = () => {
+      if (hi.naturalWidth && hi.naturalHeight) {
+        res.textContent = `${hi.naturalWidth}×${hi.naturalHeight}`;
+      }
+    };
+
+    if (hi.decode) {
+      hi.decode().then(() => { setResFromHi(); revealHi(); })
+        .catch(() => hi.addEventListener("load", () => { setResFromHi(); revealHi(); }, { once: true }));
+    } else {
+      hi.addEventListener("load", () => { setResFromHi(); revealHi(); }, { once: true });
+    }
+
+    // In case there was no lowSrc, still set res on img load (hi-res directly)
     img.addEventListener("load", () => {
-      if (img.naturalWidth && img.naturalHeight) {
+      if (!lowSrc && img.naturalWidth && img.naturalHeight) {
         res.textContent = `${img.naturalWidth}×${img.naturalHeight}`;
       }
       if (!opts.createdAt) ts.textContent = formatTimestamp(new Date());
@@ -310,17 +387,14 @@
     document.addEventListener("keydown", onKey);
   }
 
-  // ----- Card hover overlay for grid -----
-  // Full-cover gradient overlay; bottom bar contains timestamp + action icons.
-  // No type pill in the grid overlay.
+  // ----- Card hover overlay (unchanged) -----
   function attachHoverOverlay(cardEl, imgUrlLike, item, onDeleted) {
     injectStyle();
     const imgUrl = normalizeUrl(imgUrlLike);
 
-    // Ensure card is a positioning and clipping context for overlay
     const cs = getComputedStyle(cardEl);
     if (cs.position === "static" || !cs.position) cardEl.style.position = "relative";
-    if (cs.overflow !== "hidden") cardEl.style.overflow = "hidden"; // clip overlay to image bounds
+    if (cs.overflow !== "hidden") cardEl.style.overflow = "hidden";
 
     const overlay = document.createElement("div");
     overlay.className = "gal-overlay";
@@ -328,7 +402,6 @@
     const bottom = document.createElement("div");
     bottom.className = "gal-bottombar";
 
-    // Meta: only timestamp (smaller)
     const meta = document.createElement("div");
     meta.className = "gal-meta";
     const dt = document.createElement("span");
@@ -336,7 +409,6 @@
     dt.textContent = item?.createdAt ? formatTimestamp(item.createdAt) : "";
     meta.appendChild(dt);
 
-    // Actions (tight spacing, icons only)
     const actions = document.createElement("div");
     actions.className = "gal-actions";
 
@@ -385,7 +457,6 @@
     bottom.appendChild(actions);
     overlay.appendChild(bottom);
 
-    // Hover animation
     cardEl.addEventListener("mouseenter", () => {
       overlay.style.opacity = "1";
       overlay.style.transform = "translateY(0)";
@@ -400,7 +471,7 @@
 
   window.NBViewer = {
     open,
-    openViewerWithActions: open, // alias for legacy calls
+    openViewerWithActions: open,
     openPicker,
     attachHoverOverlay,
   };
