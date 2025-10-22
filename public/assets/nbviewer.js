@@ -23,18 +23,21 @@
       ".viewer-img.is-sharp{filter:none}" +
       ".viewer-backdrop.blurred .viewer-img{filter:blur(10px) brightness(.65)}" +
 
-      /* Fullscreen bottom bars */
-      ".viewer-bottombar{position:absolute;right:16px;bottom:12px;display:flex;gap:4px;align-items:center;z-index:3}" +
-      ".viewer-actions{display:flex;gap:4px;align-items:center}" +
+      /* Fullscreen bottom bars (now hidden until hi-res ready) */
+      ".viewer-bottombar{position:absolute;right:16px;bottom:12px;display:flex;gap:4px;align-items:center;z-index:3;opacity:0;pointer-events:none;transition:opacity .20s ease}" +
+      ".viewer-infobar{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:2;background:linear-gradient(0deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%);opacity:0;pointer-events:none;transition:opacity .20s ease}" +
 
+      /* When hi-res has loaded, fade HUD in */
+      ".viewer-wrap.hi-ready .viewer-bottombar, .viewer-wrap.hi-ready .viewer-infobar{opacity:1;pointer-events:auto}" +
+
+      ".viewer-actions{display:flex;gap:4px;align-items:center}" +
       ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;outline:none;background:transparent;padding:0;margin:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff;box-shadow:none}" +
       ".icon-btn[disabled]{opacity:.5;cursor:not-allowed}" +
       ".icon-btn:hover{filter:brightness(1.08)}" +
       ".icon-btn:active{transform:translateY(1px)}" +
       ".icon-btn svg{width:16px;height:16px;display:block}" +
 
-      /* Infobar */
-      ".viewer-infobar{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:2;background:linear-gradient(0deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%)}" +
+      /* Infobar content */
       ".viewer-info-left{display:flex;align-items:center;gap:10px;font-size:12px;color:#e6e9ff;opacity:.95}" +
       ".viewer-ts{font-size:11px;color:#e6e9ff;opacity:.95}" +
       ".viewer-res{font-size:11px;color:#e6e9ff;opacity:.9}" +
@@ -122,6 +125,16 @@
     }
   }
 
+  // State/Type label formatter (prefer state, fallback to type)
+  function stateToLabel(raw) {
+    const s = String(raw || "").toLowerCase().trim();
+    if (!s) return "";
+    if (s === "base" || s === "base-image" || s === "base image") return "base image";
+    if (s === "upscaled") return "upscaled";
+    if (s === "video" || s === "i2v") return "video";
+    return s; // passthrough for any other custom states
+  }
+
   // ----- Storyboard picker (unchanged) -----
   function openPicker(imageId, backdropEl) {
     const back = document.createElement("div");
@@ -190,9 +203,11 @@
   // ----- Fullscreen viewer (blur-up + fixed sizing) -----
   /**
    * open(urlLike, {
-   *   imageId?, createdAt?, type?,
+   *   imageId?, createdAt?,
+   *   state?, type?,                   // <-- prefer state; fallback to type
    *   lowSrc?: string,                 // thumbnail/tiny already decoded in grid
    *   aspect?: number,                 // known aspect ratio; if absent we infer after hi-res load
+   *   onDeleted?: Function
    * })
    */
   function open(urlLike, opts) {
@@ -211,7 +226,6 @@
     wrap.className = "viewer-wrap";
 
     // Size the wrap *before* we show the image to avoid any jump.
-    // If we know the aspect, compute a fixed width/height that fits 92vw/92vh.
     const maxW = Math.floor(window.innerWidth * 0.92);
     const maxH = Math.floor(window.innerHeight * 0.92);
     if (knownAspect) {
@@ -236,7 +250,7 @@
       img.src = url;
     }
 
-    // --- Infobar (timestamp, resolution, type) ---
+    // --- Infobar (timestamp, resolution, state pill) ---
     const infobar = document.createElement("div");
     infobar.className = "viewer-infobar";
 
@@ -253,11 +267,14 @@
 
     const pill = document.createElement("span");
     pill.className = "viewer-pill";
-    pill.textContent = (opts.type || "").toLowerCase();
+    // Prefer state, fallback to type for old images
+    const rawState = (opts.state != null ? opts.state : opts.type);
+    const stateLabel = stateToLabel(rawState) || "";
+    if (stateLabel) pill.textContent = stateLabel;
 
     if (ts.textContent) infoLeft.appendChild(ts);
     infoLeft.appendChild(res);
-    if (pill.textContent) infoLeft.appendChild(pill);
+    if (stateLabel) infoLeft.appendChild(pill);
 
     infobar.appendChild(infoLeft);
 
@@ -348,9 +365,11 @@
         res.textContent = `${hi.naturalWidth}×${hi.naturalHeight}`;
       }
       if (!opts.createdAt) ts.textContent = formatTimestamp(new Date());
+
+      // >>> Show HUD only AFTER hi-res is ready <<<
+      wrap.classList.add("hi-ready");
     };
 
-    // Read resolution from hi-res (even if we started with lowSrc)
     const setResFromHi = () => {
       if (hi.naturalWidth && hi.naturalHeight) {
         res.textContent = `${hi.naturalWidth}×${hi.naturalHeight}`;
@@ -358,7 +377,8 @@
     };
 
     if (hi.decode) {
-      hi.decode().then(() => { setResFromHi(); revealHi(); })
+      hi.decode()
+        .then(() => { setResFromHi(); revealHi(); })
         .catch(() => hi.addEventListener("load", () => { setResFromHi(); revealHi(); }, { once: true }));
     } else {
       hi.addEventListener("load", () => { setResFromHi(); revealHi(); }, { once: true });

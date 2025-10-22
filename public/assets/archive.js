@@ -1,8 +1,8 @@
 // public/assets/archive.js
 // Archive page with tiny (blur-up) -> thumbnail swap,
 // fullscreen now receives lowSrc + aspect to avoid layout shift.
+// Uses "state" (not "type") in the overlay and fullscreen meta.
 
-/* ========== DOM helpers ========== */
 const $ = (id) => document.getElementById(id);
 const grid = $("grid");
 const empty = $("empty");
@@ -64,12 +64,12 @@ function cardForItem(item, onDeleted) {
   link.appendChild(img);
   card.appendChild(link);
 
-  // Hover overlay (no change)
+  // Hover overlay
   if (window.NBViewer && typeof NBViewer.attachHoverOverlay === "function") {
     const overlay = NBViewer.attachHoverOverlay(
       card,
       item.thumbUrl || item.url || "",
-      { id: item.id, createdAt: item.createdAt, type: item.type },
+      { id: item.id, createdAt: item.createdAt, state: item.state || "base-image" },
       onDeleted
     );
     try {
@@ -94,7 +94,7 @@ function cardForItem(item, onDeleted) {
     NBViewer.open(item.url || item.thumbUrl, {
       imageId: item.id,
       createdAt: item.createdAt,
-      type: item.type,
+      state: item.state || "base-image",
       lowSrc: item.thumbUrl || item.tinyUrl || null,  // show blurred first
       aspect: aspect || null                           // lock size → no shift
     });
@@ -103,7 +103,7 @@ function cardForItem(item, onDeleted) {
   return card;
 }
 
-/* ========== Paging state & fetch (unchanged except for renderer) ========== */
+/* ========== Paging state & fetch ========== */
 let cursor = null;
 let isLoading = false;
 let isEnd = false;
@@ -138,7 +138,7 @@ async function fetchPage() {
           thumbUrl: it.thumbUrl || null,
           tinyUrl: it.tinyUrl || null,
           createdAt: it.createdAt || null,
-          type: it.type || null
+          state: it.state || "base-image"
         },
         () => { seen.delete(id); }
       );
@@ -163,7 +163,7 @@ async function fetchPage() {
   }
 }
 
-/* ========== IO + kickoff (unchanged) ========== */
+/* ========== IO + kickoff ========== */
 const PREFILL_MAX_LOOPS = 2;
 async function ensureFilledOnceOrTwice() {
   let loops = 0;

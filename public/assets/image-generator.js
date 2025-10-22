@@ -1,5 +1,6 @@
 // public/assets/image-generator.js
-// Generator page logic (unchanged behaviors + fullscreen blur-up via NBViewer.open with previewEl)
+// Generator page logic — prompt is ONLY enhanced when the user clicks “Enhance text”.
+// We pass/annotate image state (not type) to the viewer overlays.
 
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -33,7 +34,7 @@
     s.textContent = `
       #${drop ? drop.id : "drop"} { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .12s ease; will-change: background-color, border-color, box-shadow, transform; }
       #${drop ? drop.id : "drop"}:hover { cursor: pointer; }
-      #${drop ? drop.id : "drop"}.is-hover:not(.has-upload) { background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%); border-color: color-mix(in oklab, var(--line-soft) 60%, white); box-shadow: 0 2px 12px rgba(0,0,0,.10), inset 0 0 0 1px rgba(255,255,255,.04); transform: translateY(-1px); }
+      #${drop ? drop.id : "drop"}.is-hover:not(.has-upload) { background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%); border-color: color-mix(in oklab, var(--line-soft) 60%, white); box-shadow: 0 2px 12px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.04); transform: translateY(-1px); }
       #${drop ? drop.id : "drop"}.is-drag:not(.has-upload) { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border-style: dashed; border-color: color-mix(in oklab, var(--brand, #7c8cff) 50%, white 20%); box-shadow: 0 0 0 3px rgba(124,140,255,.15), 0 8px 24px rgba(0,0,0,.20); }
 
       #prompt, input#prompt, textarea#prompt { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
@@ -174,7 +175,7 @@
   }
 
   /* -------------------- Card renderer (lightweight) -------------------- */
-  function cardTile({ id, tinyUrl, thumbUrl, url, createdAt, type }, onDeleted) {
+  function cardTile({ id, tinyUrl, thumbUrl, url, createdAt, state }, onDeleted) {
     const card = createEl("div", "card-gal");
     card.style.position = "relative";
 
@@ -197,7 +198,7 @@
       const overlay = NBViewer.attachHoverOverlay(
         card,
         thumbUrl || url || "",
-        { id, createdAt, type },
+        { id, createdAt, state },
         onDeleted
       );
       card.appendChild(overlay);
@@ -215,7 +216,7 @@
       NBViewer.open(url || thumbUrl, {
         imageId: id,
         createdAt,
-        type,
+        state,
         lowSrc: thumbUrl || tinyUrl || null,
         aspect: aspect || null
       });
@@ -240,7 +241,7 @@
           thumbUrl: it.thumbUrl || null,
           url: it.url || null,
           createdAt: it.createdAt || null,
-          type: it.type || null,
+          state: it.state || "base-image",
         });
         frag.appendChild(card);
       }
@@ -273,8 +274,9 @@
     return { card, box };
   }
 
-  function inferTypeFromContext() {
-    return currentUpload && currentUpload.dataUrl ? "I2I" : "T2I";
+  // NOTE: We annotate newly created images with "state" for UI purposes.
+  function currentStateFromContext() {
+    return "base-image";
   }
 
   function addHoverOverlay(containerEl, imgUrl, meta) {
@@ -285,7 +287,7 @@
         {
           id: meta.id,
           createdAt: meta.createdAt ? meta.createdAt.toISOString() : new Date().toISOString(),
-          type: meta.type || ""
+          state: meta.state || "base-image"
         },
         meta.onDeleted
       );
@@ -293,6 +295,7 @@
     }
   }
 
+  // ---- Enhance only on explicit click ----
   enhanceBtn && enhanceBtn.addEventListener("click", async () => {
     const text = promptEl.value.trim();
     if (!text) { alert("Enter a prompt first."); return; }
@@ -303,11 +306,13 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: text, systemPrompt: (window.DEFAULT_SYSTEM_PROMPT || "") })
       });
+      // Replace the input with the enhanced text ONLY because user asked for it.
       promptEl.value = String(j.enhancedPrompt || text);
     } catch (e) { alert(e.message || e); }
     finally { enhanceBtn.disabled = false; }
   });
 
+  // ---- Generate: NEVER auto-enhance; send exactly what's in the box ----
   generateBtn && generateBtn.addEventListener("click", async () => {
     const text = promptEl.value.trim();
     if (!text) { alert("Please write a prompt."); return; }
@@ -320,8 +325,7 @@
     setInProgress(inProgress + 1);
 
     try {
-      const body = { prompt: text, systemPrompt: (window.DEFAULT_SYSTEM_PROMPT || "") };
-      const generationType = inferTypeFromContext();
+      const body = { prompt: text }; // no systemPrompt/enhancedPrompt here
       if (currentUpload && currentUpload.dataUrl) { body.image = { dataUrl: currentUpload.dataUrl }; }
 
       const j = await jfetch("/api/generate-image", {
@@ -354,7 +358,7 @@
       addHoverOverlay(card, objUrl, {
         id,
         archiveUrl,
-        type: generationType,
+        state: currentStateFromContext(),
         createdAt: new Date(),
         onDeleted: () => { if (card && card.parentNode) card.parentNode.removeChild(card); showEmptyIfNeeded(); }
       });
@@ -367,7 +371,7 @@
             previewEl: img,          // pass preview for fullscreen blur-up
             imageId: id || null,
             createdAt: new Date(),
-            type: generationType
+            state: currentStateFromContext()
           });
         } else {
           window.open(full, "_blank", "noopener,noreferrer");

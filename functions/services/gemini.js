@@ -2,7 +2,7 @@
 // Gemini image generation (T2I/I2I) + billing integration (kind: "image")
 
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-const MODEL_ID = "gemini-2.5-flash-image";
+export const MODEL_ID = "gemini-2.5-flash-image";
 
 import { recordUsage, costGeminiImage, currentUnitPricesSnapshot, BillingConfigError } from "./billing.js";
 
@@ -46,7 +46,6 @@ async function callGemini(parts, { action }) {
   try {
     const cost_usd = costGeminiImage({
       images: 1,
-      // per policy: only charge input tokens if present
       promptTokens
     });
     await recordUsage({
@@ -62,7 +61,6 @@ async function callGemini(parts, { action }) {
     });
   } catch (e) {
     if (!(e instanceof BillingConfigError)) throw e;
-    // Skip billing row when pricing misconfigured — controller will have blocked anyway.
   }
 
   return { mimeType, base64: data };

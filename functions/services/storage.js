@@ -1,6 +1,5 @@
 // functions/services/storage.js
 import { v4 as uuidv4 } from "uuid";
-import sharp from "sharp";
 import { db, bucket, FieldValueServer } from "../firebase.js";
 
 function extFromMime(m) {
@@ -17,22 +16,16 @@ function yyyymmdd(date = new Date()) {
   return `${y}/${m}/${d}`;
 }
 
-/** Save original image to Storage and create Firestore record. */
-export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPrompt, modelUsed, type }) {
-  if (!base64) return { galleryUrl: null, id: null };
+/**
+ * Save original image to Storage and create Firestore record.
+ * NEW RULES:
+ *  - Store { url, path, prompt, model, state, mimeType, createdAt }
+ *  - Do NOT store enhancedPrompt, type, width, height.
+ */
+export async function saveImageAndRecord({ mimeType, base64, prompt, model, state }) {
+  if (!base64) return { archiveUrl: null, id: null };
 
   const buffer = Buffer.from(base64, "base64");
-
-  // Read intrinsic dimensions from the original buffer
-  let width = null;
-  let height = null;
-  try {
-    const meta = await sharp(buffer).metadata();
-    width = meta?.width ?? null;
-    height = meta?.height ?? null;
-  } catch {
-    // If metadata probing fails, leave width/height null (client can fallback if needed)
-  }
 
   const id = uuidv4();
   const ext = extFromMime(mimeType);
@@ -51,22 +44,20 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, enhancedPro
   });
 
   const encodedPath = encodeURIComponent(path);
-  const galleryUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+  const archiveUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
 
   await db.collection("images").doc(id).set({
-    url: galleryUrl,
+    url: archiveUrl,
     path,
-    prompt,
-    enhancedPrompt,
-    modelUsed,
-    type: type || null,
+    prompt,                         // final prompt used for generation
+    model: model || "gemini-2.5-flash-image",
+    state: state || "base-image",
     mimeType,
-    width,        // <- stored intrinsic width
-    height,       // <- stored intrinsic height
     createdAt: FieldValueServer.serverTimestamp()
   });
 
-  return { galleryUrl, id };
+  // return both keys to be friendly with previous callers
+  return { archiveUrl, galleryUrl: archiveUrl, id };
 }
 
 /** Delete from Storage + Firestore + any storyboard references. */

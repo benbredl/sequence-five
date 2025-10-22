@@ -107,11 +107,10 @@ export async function getStoryboard(req, res) {
         url: img.url || null,
         thumbUrl: img.thumbUrl || null,
         tinyUrl: img.tinyUrl || null,
-        enhancedPrompt: img.enhancedPrompt || null,
-        modelUsed: img.modelUsed || null,
-        mimeType: img.mimeType || null,
-        width: img.width ?? null,
-        height: img.height ?? null
+        // use new image doc fields
+        model: img.model || null,
+        mimeType: img.mimeType || null
+        // removed: enhancedPrompt, modelUsed, width, height
       };
     });
 
@@ -273,11 +272,8 @@ export async function updateStoryboardItemDescription(req, res) {
 }
 
 /**
- * NEW: Generate a cinematic shot description using Gemini 2.5 Flash (text) with image input.
- * - Combines storyboard description + current shot description (if any) + the item's image
- * - Returns { description, modelUsed }
- *
- * Body: { storyboardId: string, imageId: string, shotDescription?: string }
+ * Generate a cinematic shot description using Gemini 2.5 Flash (text) with image input.
+ * (unchanged logic; not related to image storage fields)
  */
 export async function generateStoryboardItemDescription(req, res) {
   try {
@@ -303,12 +299,12 @@ export async function generateStoryboardItemDescription(req, res) {
     const [buffer] = await bucket.file(path).download();
     const base64 = buffer.toString("base64");
 
-    // Build the fixed JSON text prompt
-    // If shotDescription is empty -> omit it (model sees just storyboard+image)
+    // Build payload
     const payload = {
       storyboard_description: String(storyboard.description || "").trim(),
       shot_description_input: String(shotDescription || "").trim(),
-      instruction: "Generate one polished image-to-video prompt (3–6 sentences) covering camera movement, subject motion, lighting/atmosphere, and tone. Return ONLY the final prose, no meta."
+      instruction:
+        "Generate one polished image-to-video prompt (3–6 sentences) covering camera movement, subject motion, lighting/atmosphere, and tone. Return ONLY the final prose, no meta."
     };
 
     const { text, modelUsed } = await describeWithImage({

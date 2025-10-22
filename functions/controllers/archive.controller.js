@@ -25,12 +25,11 @@ export async function getArchive(req, res) {
         tinyUrl: v.tinyUrl || null,
         path: v.path || null,
         prompt: v.prompt || null,
-        enhancedPrompt: v.enhancedPrompt || null,
-        modelUsed: v.modelUsed || null,
-        type: v.type || null,
+        // New fields
+        model: v.model || null,
+        state: v.state || "base-image",
         mimeType: v.mimeType || null,
-        width: v.width ?? null,    // <- pass through intrinsic width
-        height: v.height ?? null,  // <- pass through intrinsic height
+        // removed: enhancedPrompt, modelUsed, type, width, height
         createdAt: created
       };
     });
