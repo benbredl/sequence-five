@@ -14,6 +14,7 @@
    - UPDATE: Inline "Saved" indicator placed next to the 'Generate description' button
    - UPDATE: Remove textarea min-height (handled in CSS)
    - NEW: Click image to open fullscreen viewer
+   - FIX: Use blur-up tiny->thumb progressive loading for storyboard thumbnails
 */
 
 (function () {
@@ -48,6 +49,42 @@
 
   const TICK_SVG = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
   const HANDLE_SVG = "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><circle cx='7' cy='6' r='1.4'/><circle cx='12' cy='6' r='1.4'/><circle cx='17' cy='6' r='1.4'/><circle cx='7' cy='12' r='1.4'/><circle cx='12' cy='12' r='1.4'/><circle cx='17' cy='12' r='1.4'/><circle cx='7' cy='18' r='1.4'/><circle cx='12' cy='18' r='1.4'/><circle cx='17' cy='18' r='1.4'/></svg>";
+
+  /* ---------- Progressive images (tiny -> thumb) ---------- */
+  function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }) {
+    const img = document.createElement("img");
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.alt = alt;
+    img.className = "blur-up";
+    img.src = tinyUrl || thumbUrl;
+
+    const settle = () => { img.classList.add("is-loaded"); };
+
+    if (tinyUrl && thumbUrl && thumbUrl !== tinyUrl) {
+      const hi = new Image();
+      hi.decoding = "async";
+      hi.src = thumbUrl;
+      const reveal = () => {
+        if (img.src !== thumbUrl) img.src = thumbUrl;
+        requestAnimationFrame(settle);
+      };
+      if (hi.decode) {
+        hi.decode().then(reveal).catch(() => hi.addEventListener("load", reveal, { once: true }));
+      } else {
+        hi.addEventListener("load", reveal, { once: true });
+      }
+      hi.addEventListener("error", () => requestAnimationFrame(settle), { once: true });
+    } else {
+      if (img.complete) {
+        requestAnimationFrame(settle);
+      } else {
+        img.addEventListener("load", settle, { once: true });
+        img.addEventListener("error", settle, { once: true });
+      }
+    }
+    return img;
+  }
 
   function indicateReordered(cardEl) {
     if (!cardEl) return;
@@ -84,11 +121,14 @@
     const inner = el('div', 'sb-inner');
 
     const media = el('div', 'sb-media');
-    const img = new Image();
-    img.alt = 'storyboard item';
-    img.loading = 'lazy';
-    img.decoding = 'async';
-    img.src = it.thumbUrl || it.url;
+
+    // --- FIX: Use progressive blur-up image (tiny -> thumb) ---
+    const img = createProgressiveImage({
+      tinyUrl: it.tinyUrl || null,
+      thumbUrl: it.thumbUrl || it.url || null,
+      alt: "storyboard item"
+    });
+    // .sb-media CSS already sets width/height/object-fit for child img
     media.appendChild(img);
 
     const pill = el('div', 'sb-pill');
