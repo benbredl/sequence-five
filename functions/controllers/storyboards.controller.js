@@ -101,6 +101,7 @@ export async function getStoryboard(req, res) {
         imageId: d.id,
         orderIndex: itemData.orderIndex ?? null,
         state: itemData.state || "base-image", // default state
+        description: itemData.description || "", // <-- include saved description
         addedAt: itemData.addedAt?.toDate
           ? itemData.addedAt.toDate().toISOString()
           : itemData.addedAt || null,
@@ -226,6 +227,47 @@ export async function reorderStoryboardItem(req, res) {
       .doc(String(imageId));
 
     await ref.set({ orderIndex: n }, { merge: true });
+    return ok(res, { ok: true });
+  } catch (e) {
+    return err(res, e);
+  }
+}
+
+/**
+ * Update description for a storyboard item.
+ * Body: { storyboardId: string, imageId: string, description: string }
+ */
+export async function updateStoryboardItemDescription(req, res) {
+  try {
+    const { storyboardId, imageId, description } = req.body || {};
+    if (!storyboardId || !imageId) {
+      return bad(res, "storyboardId and imageId required");
+    }
+
+    const desc =
+      typeof description === "string"
+        ? description.trim().slice(0, 5000)
+        : "";
+
+    const itemRef = db
+      .collection("storyboards")
+      .doc(String(storyboardId))
+      .collection("items")
+      .doc(String(imageId));
+
+    const itemDoc = await itemRef.get();
+    if (!itemDoc.exists) {
+      return err(res, new Error("Storyboard item not found"), 404);
+    }
+
+    await itemRef.set(
+      {
+        description: desc,
+        updatedAt: new Date()
+      },
+      { merge: true }
+    );
+
     return ok(res, { ok: true });
   } catch (e) {
     return err(res, e);
