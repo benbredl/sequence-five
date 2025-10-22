@@ -2,6 +2,8 @@
 import { db } from "../firebase.js";
 import { bad, err, ok } from "../utils/http.js";
 
+const GAP = 1000;
+
 // Create storyboard
 export async function createStoryboard(req, res) {
   try {
@@ -48,7 +50,7 @@ export async function listStoryboards(_req, res) {
   }
 }
 
-// Get storyboard + items (with image joins)
+// Get storyboard + items (with image joins) — order by orderIndex ASC (then addedAt DESC as tiebreaker)
 export async function getStoryboard(req, res) {
   try {
     const id = String(req.query.id || "").trim();
@@ -59,7 +61,24 @@ export async function getStoryboard(req, res) {
     if (!sbDoc.exists) return err(res, new Error("Storyboard not found"), 404);
 
     const sb = sbDoc.data() || {};
-    const itemsSnap = await sbRef.collection("items").orderBy("addedAt", "desc").get();
+
+    // Prefer orderIndex asc; add tiebreaker on addedAt desc
+    // Firestore requires composite index for this pair; if you haven't added yet,
+    // you can temporarily drop the secondary orderBy or add the suggested index.
+    let itemsSnap;
+    try {
+      itemsSnap = await sbRef
+        .collection("items")
+        .orderBy("orderIndex", "asc")
+        .orderBy("addedAt", "desc")
+        .get();
+    } catch {
+      itemsSnap = await sbRef
+        .collection("items")
+        .orderBy("orderIndex", "asc")
+        .get();
+    }
+
     const imageIds = itemsSnap.docs.map((d) => d.id);
 
     const imagesById = {};
@@ -80,6 +99,8 @@ export async function getStoryboard(req, res) {
       const img = imagesById[d.id] || {};
       return {
         imageId: d.id,
+        orderIndex: itemData.orderIndex ?? null,
+        state: itemData.state || "base-image", // default state
         addedAt: itemData.addedAt?.toDate
           ? itemData.addedAt.toDate().toISOString()
           : itemData.addedAt || null,
@@ -89,8 +110,8 @@ export async function getStoryboard(req, res) {
         enhancedPrompt: img.enhancedPrompt || null,
         modelUsed: img.modelUsed || null,
         mimeType: img.mimeType || null,
-        width: img.width ?? null,    // <- pass through intrinsic width
-        height: img.height ?? null   // <- pass through intrinsic height
+        width: img.width ?? null,
+        height: img.height ?? null
       };
     });
 
@@ -106,7 +127,7 @@ export async function getStoryboard(req, res) {
   }
 }
 
-// Add image to storyboard
+// Add image to storyboard — assign large-gap orderIndex and initial state
 export async function addToStoryboard(req, res) {
   try {
     const { storyboardId, imageId } = req.body || {};
@@ -122,12 +143,25 @@ export async function addToStoryboard(req, res) {
     const imgDoc = await imgRef.get();
     if (!imgDoc.exists) return err(res, new Error("Image not found"), 404);
 
+    // Find current max orderIndex and add GAP
+    const qs = await sbRef.collection("items").orderBy("orderIndex", "desc").limit(1).get();
+    const max = !qs.empty ? (Number(qs.docs[0].data().orderIndex) || 0) : 0;
+    const orderIndex = (Number.isFinite(max) ? max : 0) + GAP;
+
     await sbRef
       .collection("items")
       .doc(String(imageId))
-      .set({ imageId: String(imageId), addedAt: new Date() }, { merge: true });
+      .set(
+        {
+          imageId: String(imageId),
+          addedAt: new Date(),
+          orderIndex,
+          state: "base-image"
+        },
+        { merge: true }
+      );
 
-    return ok(res, { ok: true });
+    return ok(res, { ok: true, orderIndex });
   } catch (e) {
     return err(res, e);
   }
@@ -168,6 +202,30 @@ export async function deleteStoryboard(req, res) {
     batch.delete(sbRef);
     await batch.commit();
 
+    return ok(res, { ok: true });
+  } catch (e) {
+    return err(res, e);
+  }
+}
+
+/**
+ * Reorder a single item by setting a new orderIndex.
+ * Body: { storyboardId: string, imageId: string, newOrderIndex: number }
+ */
+export async function reorderStoryboardItem(req, res) {
+  try {
+    const { storyboardId, imageId, newOrderIndex } = req.body || {};
+    if (!storyboardId || !imageId) return bad(res, "storyboardId and imageId required");
+    const n = Number(newOrderIndex);
+    if (!Number.isFinite(n)) return bad(res, "newOrderIndex must be a number");
+
+    const ref = db
+      .collection("storyboards")
+      .doc(String(storyboardId))
+      .collection("items")
+      .doc(String(imageId));
+
+    await ref.set({ orderIndex: n }, { merge: true });
     return ok(res, { ok: true });
   } catch (e) {
     return err(res, e);

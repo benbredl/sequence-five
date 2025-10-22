@@ -12,95 +12,138 @@ export const HTML = [
   "<style>",
   BASE_STYLES,
   `
-  /* ----- Page header tweaks ----- */
-  .nav-brand .nav-title{ font-weight:600; } /* keep semi-bold across pages */
-  .headerbar .hgroup h1{ font-weight:600; } /* consistent page title weight */
+  .nav-brand .nav-title{ font-weight:600; }
+  .headerbar .hgroup h1{ font-weight:600; }
 
-  /* ----- Head card ----- */
-  #head .head-title{ font-weight:700; margin-bottom:6px }
-  #head .head-desc{ color:var(--muted); font-size:12px; line-height:1.5 }
-
-  /* ----- Timeline rail: continuous line across the whole list ----- */
+  /* List container + continuous rail */
   .sb-list{
     margin-top:16px;
-    position:relative; /* allow the continuous rail */
+    position:relative;
   }
   .sb-list::before{
     content:"";
-    position:absolute;
-    top:0; bottom:0;
-    left:13px; width:2px;
-    background:rgba(79,141,253,.18); /* subtle blue */
+    position:absolute; top:0; bottom:0; left:13px; width:2px;
+    background:rgba(79,141,253,.18);
     pointer-events:none;
   }
 
-  /* Items align to the left rail; dots per card are centered vertically */
+  /* Each item has 3 columns: rail | card | buttons */
   .sb-item{
     display:grid;
-    grid-template-columns:28px 1fr;
-    gap:18px;
-    margin:28px 0;
-  }
-  .sb-rail{ position:relative; }
-  .sb-dot{
-    position:absolute; left:5px; top:50%; transform:translateY(-50%);
-    width:16px; height:16px; border-radius:50%;
-    background:radial-gradient(circle at 40% 30%, rgba(79,141,253,.9) 0%, rgba(79,141,253,.55) 55%, rgba(79,141,253,.25) 100%);
-    box-shadow:0 0 0 6px rgba(79,141,253,.10);
-    opacity:.9;
+    grid-template-columns:28px 1fr auto;
+    gap:16px;
+    margin:18px 0;
+    /* keep items stretching to the tallest element (the card);
+       we'll center the rail + buttons with align-self */
+    align-items:stretch;
   }
 
-  /* ----- Card layout ----- */
+  .sb-rail{
+    position:relative;
+    display:flex;
+    align-items:center;           /* center handle vertically inside the rail */
+    justify-content:center;
+    align-self:stretch;           /* make rail match the card's height */
+  }
+
+  /* Drag handle replaces the dot */
+  .sb-handle{
+    width:18px; height:22px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:grab; user-select:none;
+    color:#d8e0ff; opacity:.9;
+    transition: transform .12s ease, background .12s ease, opacity .12s ease;
+    background:transparent;
+  }
+  .sb-handle:active{ cursor:grabbing; transform:scale(0.98); }
+  .sb-handle svg{ width:14px; height:14px; display:block; opacity:.95 }
+
+  /* Card layout — smaller image, wider description */
   .sb-card{
     border-radius:22px;
-    padding:22px;
+    padding:16px;
     background:linear-gradient(180deg, var(--glass1), var(--glass2));
     border:1.2px solid var(--line-soft);
     box-shadow:var(--shadow-soft);
   }
   .sb-inner{
-    display:grid; grid-template-columns:1.05fr 1fr; gap:22px; align-items:center;
+    display:grid;
+    grid-template-columns:260px 1fr; /* small media like storyboards page */
+    gap:16px;
+    align-items:start;
   }
   @media (max-width:1000px){ .sb-inner{ grid-template-columns:1fr; } }
 
-  /* ----- Media smaller + overlay ----- */
   .sb-media{
     position:relative;
-    border-radius:18px; overflow:hidden;
+    border-radius:14px; overflow:hidden;
     background:linear-gradient(180deg, var(--glass1), var(--glass2));
     border:1px solid var(--line-soft);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
     aspect-ratio:16/9;
-    width:82%;            /* smaller image as requested */
-    max-width:700px;      /* safety cap on large screens */
+    width:100%;
   }
-  .sb-media img{ display:block; width:100%; height:100%; object-fit:cover }
-  .blur-up{ filter:blur(12px); transform:translateZ(0); transition:filter .45s ease }
-  .blur-up.is-loaded{ filter:none }
+  .sb-media img{ width:100%; height:100%; object-fit:cover; display:block }
 
-  /* Bottom overlay (subtle) */
-  .sb-ov{
-    position:absolute; left:0; right:0; bottom:0;
-    padding:8px 12px;
-    background:linear-gradient(0deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 100%);
-    display:flex; align-items:center; gap:10px;
-    pointer-events:none;
+  /* Description label + input */
+  .sb-desc-label{
+    color:var(--muted);
+    font-size:12px;
+    margin:2px 0 6px 0;
+    font-weight:600;
   }
-  .sb-pill{
-    display:inline-flex; align-items:center; gap:6px; border-radius:999px;
+  .sb-desc{
+    width:100%;
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+    color:var(--ink);
     border:1px solid var(--line-soft);
-    background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
-    color:#c7ceed; padding:3px 8px; font-size:11px; font-weight:800; letter-spacing:.2px;
+    border-radius:14px;
+    padding:12px 14px;
+    font-size:14px;
+    outline:none;
+    min-height:64px;
+    resize:vertical;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+    transition:box-shadow .2s,border-color .2s;
   }
-  .sb-meta-small{ font-size:12px; color:#e6e9ff; opacity:.92 }
+  .sb-desc:focus{
+    border-color:var(--line);
+    box-shadow:0 0 0 3px rgba(79,141,253,.22);
+  }
+  .sb-saved{
+    font-size:11px; color:#9fc29f; margin-top:6px; opacity:.0; transition:opacity .2s ease;
+    display:flex; align-items:center; gap:6px;
+  }
+  .sb-saved.show{ opacity:1; }
+  .sb-saved svg{ width:14px; height:14px; display:block }
 
-  /* Under-image actions */
-  .sb-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px }
-  .sb-actions .btn-ghost{ box-shadow:none } /* no glow */
+  /* Buttons column (to the right of card) */
+  .sb-buttons{
+    display:flex; flex-direction:column; gap:8px;
+    align-items:stretch;
+    justify-content:center;       /* center buttons vertically in the row */
+    align-self:center;            /* vertically center this column vs the card */
+    margin-top:0;                 /* was pushing buttons upward */
+  }
+  .btn-small{
+    background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+    border:1px solid var(--line-soft);
+    color:#d7dbff;
+    border-radius:10px;
+    padding:8px 10px;
+    font-weight:600;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .btn-small:disabled{ opacity:.6; cursor:not-allowed }
 
-  /* Right side: shot text */
-  .sb-shot-title{ font-weight:700; margin:0 0 6px 0 }
-  .sb-shot-desc{ color:#cbd3f3; font-size:13px; line-height:1.6; margin-bottom:10px }
+  /* Drag & drop visuals */
+  .dragging{ opacity:.65; transform:scale(.998); }
+  .drop-placeholder{
+    border:2px dashed rgba(79,141,253,.45);
+    border-radius:14px;
+    height:72px; /* compact placeholder */
+    margin:10px 0;
+  }
   `,
   "</style></head>",
   "<body>",
@@ -142,7 +185,7 @@ export const HTML = [
           "<div class='hgroup'><h1 id='pageTitle'>Storyboard</h1></div>",
         "</div>",
         "<div class='card' id='head'><div class='hint'>Loading…</div></div>",
-        "<div class='sb-list' id='itemsWrap'></div>",
+        "<div class='sb-list' id='itemsWrap' aria-live='polite'></div>",
         "<div id='empty' class='hint' style='display:none'>No items yet.</div>",
         "<footer class='site-footer'>Made by Sequence Five</footer>",
       "</div>",

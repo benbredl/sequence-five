@@ -223,10 +223,11 @@ button:disabled{ opacity:.6; cursor:not-allowed }
 
 /* Footer pinned to bottom via flex on .wrap */
 .site-footer{
-  margin-top:auto;padding:20px 12px;text-align:center;color:#a8b0c9;font-size:12px;
-  border-top:1px solid var(--line-soft);
-  background:linear-gradient(180deg, var(--glass1), var(--glass2));
-  border-radius:18px;
+  margin-top:auto;
+  padding:20px 12px;
+  text-align:center;
+  color:#a8b0c9;
+  font-size:12px;
 }
 
 /* Progressive image utility used across pages (Archive/Generator/Storyboards) */

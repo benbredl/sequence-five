@@ -12,7 +12,8 @@ import {
   getStoryboard,
   addToStoryboard,
   removeFromStoryboard,
-  deleteStoryboard
+  deleteStoryboard,
+  reorderStoryboardItem
 } from "../controllers/storyboards.controller.js";
 
 const router = Router();
@@ -34,6 +35,9 @@ router.get("/api/storyboard", a(getStoryboard));
 router.post("/api/storyboard/add", a(addToStoryboard));
 router.post("/api/storyboard/remove", a(removeFromStoryboard));
 router.post("/api/storyboard/delete", a(deleteStoryboard));
+
+// NEW: reorder item (save on drop)
+router.post("/api/storyboard/reorder", a(reorderStoryboardItem));
 
 // Billing
 router.get("/api/billing/summary", a(getSummary));
