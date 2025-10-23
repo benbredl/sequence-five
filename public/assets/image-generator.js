@@ -226,7 +226,11 @@
         createdAt,
         state,
         lowSrc: thumbUrl || tinyUrl || null,
-        aspect: aspect || null
+        aspect: aspect || null,
+        onDeleted: () => { // <-- also remove after fullscreen delete
+          if (card && card.parentNode) card.parentNode.removeChild(card);
+          showEmptyIfNeeded();
+        }
       });
     });
 
@@ -342,7 +346,7 @@
     setInProgress(inProgress + 1);
 
     try {
-      const body = { prompt: text }; // no systemPrompt/enhancedPrompt here
+      const body = { prompt: text };
       if (currentUpload && currentUpload.dataUrl) { body.image = { dataUrl: currentUpload.dataUrl }; }
 
       const j = await jfetch("/api/generate-image", {
@@ -385,10 +389,14 @@
         const full = archiveUrl || objUrl;
         if (window.NBViewer && typeof NBViewer.open === "function") {
           NBViewer.open(full, {
-            previewEl: img,          // pass preview for fullscreen blur-up
+            previewEl: img,
             imageId: id || null,
             createdAt: new Date(),
-            state: currentStateFromContext()
+            state: currentStateFromContext(),
+            onDeleted: () => { // <-- also remove after fullscreen delete
+              if (card && card.parentNode) card.parentNode.removeChild(card);
+              showEmptyIfNeeded();
+            }
           });
         } else {
           window.open(full, "_blank", "noopener,noreferrer");

@@ -100,7 +100,11 @@ function cardForItem(item, onDeleted) {
       createdAt: item.createdAt,
       state: item.state || "base-image",
       lowSrc: item.thumbUrl || item.tinyUrl || null,  // show blurred first
-      aspect: aspect || null                           // lock size → no shift
+      aspect: aspect || null,                          // lock size → no shift
+      onDeleted: () => {                               // <-- remove from grid after fullscreen delete
+        if (card && card.parentNode) card.parentNode.removeChild(card);
+        setEmptyVisibility();
+      }
     });
   });
 

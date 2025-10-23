@@ -1,6 +1,9 @@
 /* public/assets/storyboard.js
-   (…existing features…)
-   + Fullscreen blur-up: pass the decoded thumbnail <img> to NBViewer.open
+   Storyboard page:
+   - Adds nice confirm dialog when removing an image from a storyboard
+   - Removes the row immediately on success (no refresh)
+   - Passes onDeleted to NBViewer so fullscreen deletions also remove the row
+   - Fullscreen blur-up support (lowSrc + aspect)
 */
 
 (function () {
@@ -15,6 +18,38 @@
       open: (url) => window.open(url, '_blank', 'noopener'),
       openViewerWithActions: (opts) => window.open(opts && opts.url ? opts.url : '', '_blank', 'noopener')
     };
+  }
+
+  // Local nice confirm (mirrors NBViewer’s style if present)
+  async function niceConfirm({ title = "Are you sure?", message = "", confirmText = "Delete", cancelText = "Cancel", danger = true } = {}) {
+    // If NBViewer injected (most cases), reuse its nice modal
+    if (window.NBViewer && typeof NBViewer.open === "function") {
+      try {
+        // Piggyback on NBViewer’s internal modal by opening a hidden one?
+        // Easier: clone the same UI here:
+      } catch {}
+    }
+    // Minimal shared modal (same classes if NBViewer CSS exists)
+    return new Promise((resolve) => {
+      const back = document.createElement("div");
+      back.className = "nbv-confirm-back";
+      const sheet = document.createElement("div");
+      sheet.className = "nbv-confirm";
+      sheet.innerHTML =
+        `<h3>${title}</h3>` +
+        `<p>${message}</p>` +
+        `<div class="row">` +
+        `<button class="nbv-btn">${cancelText}</button>` +
+        `<button class="nbv-btn ${danger ? "danger" : ""}">${confirmText}</button>` +
+        `</div>`;
+      document.body.appendChild(back);
+      back.appendChild(sheet);
+      const [bCancel, bOk] = sheet.querySelectorAll(".nbv-btn");
+      function close(val){ if (back.parentNode) back.parentNode.removeChild(back); resolve(val); }
+      back.addEventListener("click", (e) => { if (e.target === back) close(false); });
+      bCancel.addEventListener("click", () => close(false));
+      bOk.addEventListener("click", () => close(true));
+    });
   }
 
   function getParam(name) {
@@ -137,7 +172,11 @@
           createdAt: it.addedAt || undefined,
           type: it.state || 'base-image',
           lowSrc: it.thumbUrl || it.tinyUrl || null,
-          aspect: aspect || null
+          aspect: aspect || null,
+          onDeleted: () => { // remove storyboard row if globally deleted in fullscreen
+            if (row && row.parentNode) row.parentNode.removeChild(row);
+            showEmptyIfNeeded();
+          }
         });
       } else {
         window.open(full, '_blank', 'noopener,noreferrer');
@@ -278,22 +317,29 @@
     bUpscale.onclick = () => alert('Upscale — coming soon');
     bVideo.onclick   = () => alert('Generate video — coming soon');
 
-    bDelete.onclick = async () => {
-      if (!confirm("Remove this shot from the storyboard?")) return;
+    // NEW: pretty confirm + remove row after success
+    bDelete.onclick  = async () => {
+      const ok = await niceConfirm({
+        title: "Remove from storyboard",
+        message: "Remove this image from this storyboard? The original image will remain in your Archive.",
+        confirmText: "Remove",
+        cancelText: "Cancel",
+        danger: true
+      });
+      if (!ok) return;
+      bDelete.disabled = true;
       try {
-        bDelete.disabled = true;
         const r = await fetch('/api/storyboard/remove', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ storyboardId, imageId: it.imageId })
         });
-        const j = await r.json();
+        const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j.error || 'Failed to remove');
         if (row && row.parentNode) row.parentNode.removeChild(row);
-        const anyLeft = itemsWrap.querySelector('.sb-item');
-        if (!anyLeft && empty) empty.style.display = 'block';
-      } catch (err) {
-        alert(err.message || err);
+        showEmptyIfNeeded();
+      } catch (e) {
+        alert(e.message || e);
         bDelete.disabled = false;
       }
     };
@@ -306,158 +352,106 @@
     row.appendChild(card);
     row.appendChild(buttons);
 
-    // Drag-handle-only
-    row.draggable = false;
-    const enableDrag = () => { row.draggable = true; };
-    const disableDrag = () => { row.draggable = false; };
-    handle.addEventListener('mousedown', enableDrag);
-    handle.addEventListener('touchstart', enableDrag, { passive: true });
-    row.addEventListener('dragend', disableDrag);
-
-    row.addEventListener('dragstart', (e) => {
-      row.classList.add('dragging');
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', row.dataset.imageId || '');
-        try {
-          const ghost = row.cloneNode(true);
-          ghost.style.position = 'absolute';
-          ghost.style.top = '-9999px';
-          ghost.style.width = `${row.offsetWidth}px`;
-          document.body.appendChild(ghost);
-          e.dataTransfer.setDragImage(ghost, 20, 20);
-          setTimeout(() => document.body.removeChild(ghost), 0);
-        } catch {}
-      }
-    });
-    row.addEventListener('dragend', () => row.classList.remove('dragging'));
-
     return row;
   }
 
-  /* Drag & Drop (container-based) */
-  let draggingEl = null;
+  function showEmptyIfNeeded() {
+    if (!itemsWrap) return;
+    const has = itemsWrap.children.length > 0;
+    if (empty) empty.style.display = has ? "none" : "block";
+  }
+
+  /* ---------- Load Storyboard ---------- */
+  async function load() {
+    try {
+      headCard.innerHTML = "<div class='hint'>Loading…</div>";
+      const r = await fetch(`/api/storyboard?id=${encodeURIComponent(storyboardId)}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Failed to load");
+      const sb = j || {};
+      pageTitle.textContent = sb.title || "Storyboard";
+      headCard.innerHTML = `
+        <div class="row" style="align-items:center;justify-content:space-between">
+          <div><strong>${sb.title || ""}</strong><div class="hint" style="margin-top:6px">${sb.description || ""}</div></div>
+        </div>
+      `;
+
+      itemsWrap.innerHTML = "";
+      const frag = document.createDocumentFragment();
+      (sb.items || []).forEach((it) => frag.appendChild(makeItem(it)));
+      itemsWrap.appendChild(frag);
+      showEmptyIfNeeded();
+    } catch (e) {
+      headCard.innerHTML = `<div class='hint'>${e.message || e}</div>`;
+    }
+  }
+
+  /* ---------- Simple drag to reorder (save immediately) ---------- */
+  let dragEl = null;
   let placeholder = null;
 
-  function ensurePlaceholder() {
-    if (placeholder) return placeholder;
+  function onDragStart(e) {
+    const handle = e.target.closest('.sb-handle');
+    if (!handle) return;
+    const row = handle.closest('.sb-item');
+    if (!row) return;
+    dragEl = row;
+    dragEl.classList.add('dragging');
     placeholder = document.createElement('div');
     placeholder.className = 'drop-placeholder';
-    return placeholder;
-  }
-
-  function sbItems() {
-    return Array.from(itemsWrap.querySelectorAll('.sb-item'));
-  }
-
-  function itemAtY(y) {
-    const candidates = sbItems().filter((n) => !n.classList.contains('dragging'));
-    let closest = { el: null, offset: Number.NEGATIVE_INFINITY };
-    for (const node of candidates) {
-      const box = node.getBoundingClientRect();
-      const offset = y - (box.top + box.height / 2);
-      if (offset < 0 && offset > closest.offset) closest = { el: node, offset };
-    }
-    return closest.el;
-  }
-
-  itemsWrap.addEventListener('dragover', (e) => {
-    if (!draggingEl) draggingEl = itemsWrap.querySelector('.sb-item.dragging');
-    if (!draggingEl) return;
+    row.parentNode.insertBefore(placeholder, row.nextSibling);
     e.preventDefault();
-    const ph = ensurePlaceholder();
-    const after = itemAtY(e.clientY);
-    if (!after) {
-      itemsWrap.appendChild(ph);
-    } else {
-      itemsWrap.insertBefore(ph, after);
-    }
-  });
+  }
 
-  itemsWrap.addEventListener('drop', async (e) => {
+  function onDragOver(e) {
+    if (!dragEl) return;
     e.preventDefault();
-    if (!draggingEl) draggingEl = itemsWrap.querySelector('.sb-item.dragging');
-    if (!draggingEl) return;
-
-    const ph = placeholder;
-    if (ph && ph.parentNode) {
-      itemsWrap.insertBefore(draggingEl, ph);
-      ph.remove();
-      placeholder = null;
+    const rows = Array.from(itemsWrap.querySelectorAll('.sb-item')).filter(r => r !== dragEl);
+    const y = e.clientY;
+    let after = null;
+    for (const r of rows) {
+      const box = r.getBoundingClientRect();
+      if (y < box.top + box.height / 2) { after = r; break; }
     }
-
-    const prev = draggingEl.previousElementSibling && draggingEl.previousElementSibling.classList.contains('sb-item')
-      ? draggingEl.previousElementSibling
-      : null;
-    const next = draggingEl.nextElementSibling && draggingEl.nextElementSibling.classList.contains('sb-item')
-      ? draggingEl.nextElementSibling
-      : null;
-
-    const prevVal = prev ? Number(prev.dataset.orderIndex || '0') : null;
-    const nextVal = next ? Number(next.dataset.orderIndex || '0') : null;
-
-    let newOrder;
-    if (prevVal != null && nextVal != null && isFinite(prevVal) && isFinite(nextVal)) {
-      const mid = (prevVal + nextVal) / 2;
-      newOrder = (mid !== prevVal && mid !== nextVal) ? mid : prevVal + GAP;
-    } else if (prevVal != null && isFinite(prevVal)) {
-      newOrder = prevVal + GAP;
-    } else if (nextVal != null && isFinite(nextVal)) {
-      newOrder = nextVal - GAP;
+    if (after) {
+      itemsWrap.insertBefore(placeholder, after);
     } else {
-      newOrder = 1_000_000;
+      itemsWrap.appendChild(placeholder);
     }
+  }
 
-    draggingEl.dataset.orderIndex = String(newOrder);
+  async function onDragEnd() {
+    if (!dragEl) return;
+    const after = placeholder.nextElementSibling;
+    itemsWrap.insertBefore(dragEl, after);
+    placeholder.parentNode.removeChild(placeholder);
+    placeholder = null;
 
-    const card = draggingEl.querySelector('.sb-card');
-    indicateReordered(card);
+    dragEl.classList.remove('dragging');
+    const rows = Array.from(itemsWrap.querySelectorAll('.sb-item'));
+    rows.forEach((r, i) => r.dataset.orderIndex = String((i + 1) * GAP));
 
+    // Save new order for the moved item only (enough for consistent ordering)
+    const newIndex = Number(dragEl.dataset.orderIndex || 0);
+    const imageId = dragEl.dataset.imageId;
     try {
-      const imageId = draggingEl.dataset.imageId;
-      await fetch('/api/storyboard/reorder', {
+      const r = await fetch('/api/storyboard/reorder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyboardId, imageId, newOrderIndex: newOrder })
+        body: JSON.stringify({ storyboardId, imageId, newOrderIndex: newIndex })
       });
-    } catch (err) {
-      console.error('[reorder] failed', err);
-    } finally {
-      if (draggingEl) draggingEl.classList.remove('dragging');
-      draggingEl = null;
-    }
-  });
-
-  /* Load data */
-  async function load() {
-    headCard.innerHTML = "<div class='hint'><span class='spinner'></span> Loading…</div>";
-    try {
-      const url = new URL('/api/storyboard', location.origin);
-      url.searchParams.set('id', storyboardId);
-      const r = await fetch(url.toString());
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'Failed to load storyboard');
-
-      if (pageTitle) pageTitle.textContent = j.title || 'Storyboard';
-      headCard.innerHTML = '';
-      const desc = el('div', 'head-desc');
-      desc.textContent = j.description || '';
-      headCard.appendChild(desc);
-
-      window.__storyboardMeta = { id: storyboardId, description: (j.description || '') };
-
-      itemsWrap.innerHTML = '';
-      const arr = Array.isArray(j.items) ? j.items : [];
-      if (!arr.length) { empty.style.display = 'block'; return; }
-      empty.style.display = 'none';
-
-      const frag = document.createDocumentFragment();
-      arr.forEach((it) => frag.appendChild(makeItem(it)));
-      itemsWrap.appendChild(frag);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      indicateReordered(dragEl.querySelector('.sb-card'));
     } catch (e) {
-      headCard.innerHTML = "<div class='hint'>" + (e.message || e) + "</div>";
+      console.error('[reorder] failed', e);
+    } finally {
+      dragEl = null;
     }
   }
+
+  itemsWrap.addEventListener('mousedown', onDragStart);
+  itemsWrap.addEventListener('mousemove', onDragOver);
+  document.addEventListener('mouseup', onDragEnd);
 
   load();
 })();

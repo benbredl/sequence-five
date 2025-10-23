@@ -145,7 +145,7 @@
     }
   }
 
-  // Nice confirm modal
+  // Nice confirm modal (replaces window.confirm)
   function niceConfirm({ title = "Are you sure?", message = "", confirmText = "Delete", cancelText = "Cancel", danger = true } = {}) {
     return new Promise((resolve) => {
       const back = document.createElement("div");
@@ -181,7 +181,7 @@
     if (s === "base" || s === "base-image" || s === "base image") return "base image";
     if (s === "upscaled") return "upscaled";
     if (s === "video" || s === "i2v") return "video";
-    return s; // passthrough for any other custom states
+    return s;
   }
 
   // ----- Storyboard picker (unchanged) -----
@@ -253,9 +253,9 @@
   /**
    * open(urlLike, {
    *   imageId?, createdAt?,
-   *   state?, type?,                   // <-- prefer state; fallback to type
-   *   lowSrc?: string,                 // thumbnail/tiny already decoded in grid
-   *   aspect?: number,                 // known aspect ratio; if absent we infer after hi-res load
+   *   state?, type?,
+   *   lowSrc?: string,
+   *   aspect?: number,
    *   onDeleted?: Function
    * })
    */
@@ -295,7 +295,6 @@
       img.src = lowSrc;
       img.classList.add("blur-up");
     } else {
-      // If no lowSrc, we still reserve space; hi-res will fill in
       img.src = url;
     }
 
@@ -312,11 +311,10 @@
 
     const res = document.createElement("span");
     res.className = "viewer-res";
-    res.textContent = ""; // will be filled from the **high-res** file
+    res.textContent = "";
 
     const pill = document.createElement("span");
     pill.className = "viewer-pill";
-    // Prefer state, fallback to type for old images
     const rawState = (opts.state != null ? opts.state : opts.type);
     const stateLabel = stateToLabel(rawState) || "";
     if (stateLabel) pill.textContent = stateLabel;
@@ -324,7 +322,6 @@
     if (ts.textContent) infoLeft.appendChild(ts);
     infoLeft.appendChild(res);
     if (stateLabel) infoLeft.appendChild(pill);
-
     infobar.appendChild(infoLeft);
 
     // --- Bottom-right actions bar ---
@@ -342,8 +339,7 @@
       e.stopPropagation();
       const created = opts.createdAt ? new Date(opts.createdAt) : new Date();
       const fname = `GeneratedImage_${formatTsForFilename(created)}.jpg`;
-      // Always prefer the full-res URL (the one passed to open)
-      forceDownload(url, fname);
+      forceDownload(url, fname); // always hi-res
     };
 
     const bAdd = document.createElement("button");
@@ -380,7 +376,7 @@
           });
           const j = await r.json();
           if (!r.ok) throw new Error(j.error || "Failed");
-          if (typeof opts.onDeleted === "function") opts.onDeleted();
+          if (typeof opts.onDeleted === "function") opts.onDeleted(); // <-- inform grid to remove
           close();
         } catch (err) {
           alert(err.message || err);
@@ -402,13 +398,12 @@
     back.appendChild(wrap);
     document.body.appendChild(back);
 
-    // Once the **high-res** is decoded, swap the src and remove blur.
+    // Hi-res reveal
     const hi = new Image();
     hi.decoding = "async";
     hi.src = url;
 
     const revealHi = () => {
-      // If we didn't know the aspect earlier, lock it now using hi-res intrinsic size.
       if (!knownAspect && hi.naturalWidth && hi.naturalHeight) {
         const aspect = hi.naturalWidth / hi.naturalHeight;
         const sz = computeFitSize(aspect, maxW, maxH);
@@ -417,19 +412,15 @@
           wrap.style.height = sz.height + "px";
         }
       }
-      // Swap pixels & un-blur
       if (img.src !== url) img.src = url;
       img.classList.remove("blur-up");
       img.classList.add("is-sharp");
 
-      // Resolution from the actual file — no DB reads
       if (hi.naturalWidth && hi.naturalHeight) {
         res.textContent = `${hi.naturalWidth}×${hi.naturalHeight}`;
       }
       if (!opts.createdAt) ts.textContent = formatTimestamp(new Date());
-
-      // >>> Show HUD only AFTER hi-res is ready <<<
-      wrap.classList.add("hi-ready");
+      wrap.classList.add("hi-ready"); // HUD fade-in
     };
 
     const setResFromHi = () => {
@@ -445,14 +436,6 @@
     } else {
       hi.addEventListener("load", () => { setResFromHi(); revealHi(); }, { once: true });
     }
-
-    // In case there was no lowSrc, still set res on img load (hi-res directly)
-    img.addEventListener("load", () => {
-      if (!lowSrc && img.naturalWidth && img.naturalHeight) {
-        res.textContent = `${img.naturalWidth}×${img.naturalHeight}`;
-      }
-      if (!opts.createdAt) ts.textContent = formatTimestamp(new Date());
-    }, { once: true });
 
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -500,8 +483,7 @@
     aDown.title = "Download";
     aDown.onclick = (e) => {
       e.stopPropagation();
-      // Prefer the high-res URL if provided in meta
-      const hiUrl = (item && (item.fullUrl || item.archiveUrl)) || imgUrl;
+      const hiUrl = (item && (item.fullUrl || item.archiveUrl)) || imgUrl; // prefer hi-res
       const created = item?.createdAt ? new Date(item.createdAt) : new Date();
       const fname = `GeneratedImage_${formatTsForFilename(created)}.jpg`;
       if (hiUrl) forceDownload(hiUrl, fname);
