@@ -53,6 +53,7 @@ export async function listStoryboards(_req, res) {
 }
 
 // Get storyboard + items (with image joins)
+// IMPORTANT: `state` is taken from the image doc, not the storyboard item doc.
 export async function getStoryboard(req, res) {
   try {
     const id = String(req.query.id || "").trim();
@@ -99,7 +100,8 @@ export async function getStoryboard(req, res) {
       return {
         imageId: d.id,
         orderIndex: itemData.orderIndex ?? null,
-        state: itemData.state || "base-image",
+        // ⬇️ Source of truth is the image document
+        state: img.state || "base-image",
         description: itemData.description || "",
         addedAt: itemData.addedAt?.toDate
           ? itemData.addedAt.toDate().toISOString()
@@ -107,10 +109,8 @@ export async function getStoryboard(req, res) {
         url: img.url || null,
         thumbUrl: img.thumbUrl || null,
         tinyUrl: img.tinyUrl || null,
-        // use new image doc fields
         model: img.model || null,
         mimeType: img.mimeType || null
-        // removed: enhancedPrompt, modelUsed, width, height
       };
     });
 
@@ -127,6 +127,7 @@ export async function getStoryboard(req, res) {
 }
 
 // Add image to storyboard
+// IMPORTANT: do NOT create a `state` field on the storyboard item anymore.
 export async function addToStoryboard(req, res) {
   try {
     const { storyboardId, imageId } = req.body || {};
@@ -153,8 +154,8 @@ export async function addToStoryboard(req, res) {
         {
           imageId: String(imageId),
           addedAt: new Date(),
-          orderIndex,
-          state: "base-image"
+          orderIndex
+          // NOTE: no `state` field here by design
         },
         { merge: true }
       );
