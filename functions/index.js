@@ -1,28 +1,18 @@
-// functions/index.js
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import app from "./app.js";
 
-// ---- Secrets used by the app ----
-// Primary API key (Gemini)
 const GOOGLE_API_KEY = defineSecret("GOOGLE_API_KEY");
-
-// Optional basic auth for the UI
 const BASIC_AUTH_USER = defineSecret("BASIC_AUTH_USER");
 const BASIC_AUTH_PASS = defineSecret("BASIC_AUTH_PASS");
-
-// Storage bucket (if you override default)
 const FIREBASE_STORAGE_BUCKET = defineSecret("FIREBASE_STORAGE_BUCKET");
-
-// ---- Pricing (required per your policy: PRICING=env-required) ----
-// Text pricing (Gemini 2.5 text)
 const PRICE_GEMINI_TEXT_INPUT_USD_PER_1M  = defineSecret("PRICE_GEMINI_TEXT_INPUT_USD_PER_1M");
 const PRICE_GEMINI_TEXT_OUTPUT_USD_PER_1M = defineSecret("PRICE_GEMINI_TEXT_OUTPUT_USD_PER_1M");
-// Image pricing (Gemini image)
 const PRICE_GEMINI_IMAGE_PER_IMAGE_USD    = defineSecret("PRICE_GEMINI_IMAGE_PER_IMAGE_USD");
-// Optional note displayed in usage
 const PRICE_NOTE = defineSecret("PRICE_NOTE");
-// ---- Export the HTTPS app (gen2) ----
+// NEW: Enhancor API key
+const ENHANCOR_API_KEY = defineSecret("ENHANCOR_API_KEY");
+
 export const web = onRequest(
   {
     region: "europe-west3",
@@ -31,18 +21,17 @@ export const web = onRequest(
       BASIC_AUTH_USER,
       BASIC_AUTH_PASS,
       FIREBASE_STORAGE_BUCKET,
-
-      // pricing (required)
       PRICE_GEMINI_TEXT_INPUT_USD_PER_1M,
       PRICE_GEMINI_TEXT_OUTPUT_USD_PER_1M,
       PRICE_GEMINI_IMAGE_PER_IMAGE_USD,
-      PRICE_NOTE
+      PRICE_NOTE,
+      // NEW secret for Upscale feature
+      ENHANCOR_API_KEY
     ]
   },
   app
 );
 
-// ---- Storage trigger to create previews (unchanged behavior) ----
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { generatePreviewsFor } from "./services/previews.js";
 import { db } from "./firebase.js";

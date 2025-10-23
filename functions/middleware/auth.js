@@ -1,5 +1,8 @@
-// functions/middleware/auth.js
 export default function auth(req, res, next) {
+  // Allow unauthenticated access for incoming Enhancor webhook
+  // (Webhooks won't have Basic Auth headers.)
+  if (req.path === "/api/webhooks/enhancor") return next();
+
   const user = process.env.BASIC_AUTH_USER || "";
   const pass = process.env.BASIC_AUTH_PASS || "";
   if (!user || !pass) return next(); // disabled if not configured

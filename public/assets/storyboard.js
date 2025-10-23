@@ -1,14 +1,7 @@
-/* public/assets/storyboard.js
-   Storyboard page:
-   - Adds nice confirm dialog when removing an image from a storyboard
-   - Removes the row immediately on success (no refresh)
-   - Passes onDeleted to NBViewer so fullscreen deletions also remove the row
-   - Fullscreen blur-up support (lowSrc + aspect)
-*/
-
 (function () {
   const $ = (id) => document.getElementById(id);
   const el = (t, c) => { const n = document.createElement(t); if (c) n.className = c; return n; };
+
   const GAP = 1000;
   const AUTOSAVE_IDLE_MS = 1200;
   const MIN_IDLE_ON_BLUR_MS = 1000;
@@ -20,16 +13,11 @@
     };
   }
 
-  // Local nice confirm (mirrors NBViewer’s style if present)
   async function niceConfirm({ title = "Are you sure?", message = "", confirmText = "Delete", cancelText = "Cancel", danger = true } = {}) {
-    // If NBViewer injected (most cases), reuse its nice modal
     if (window.NBViewer && typeof NBViewer.open === "function") {
       try {
-        // Piggyback on NBViewer’s internal modal by opening a hidden one?
-        // Easier: clone the same UI here:
       } catch {}
     }
-    // Minimal shared modal (same classes if NBViewer CSS exists)
     return new Promise((resolve) => {
       const back = document.createElement("div");
       back.className = "nbv-confirm-back";
@@ -71,7 +59,6 @@
   const TICK_SVG = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
   const HANDLE_SVG = "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><circle cx='7' cy='6' r='1.4'/><circle cx='12' cy='6' r='1.4'/><circle cx='17' cy='6' r='1.4'/><circle cx='7' cy='12' r='1.4'/><circle cx='12' cy='12' r='1.4'/><circle cx='17' cy='12' r='1.4'/><circle cx='7' cy='18' r='1.4'/><circle cx='12' cy='18' r='1.4'/><circle cx='17' cy='18' r='1.4'/></svg>";
 
-  /* Progressive images (tiny -> thumb) */
   function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }) {
     const img = document.createElement("img");
     img.decoding = "async";
@@ -110,8 +97,6 @@
   function indicateReordered(cardEl) {
     if (!cardEl) return;
     cardEl.classList.remove('reordered');
-    // force reflow
-    // eslint-disable-next-line no-unused-expressions
     cardEl.offsetWidth;
     cardEl.classList.add('reordered');
     setTimeout(() => cardEl.classList.remove('reordered'), 1200);
@@ -142,8 +127,6 @@
     const inner = el('div', 'sb-inner');
 
     const media = el('div', 'sb-media');
-
-    // Progressive blur-up thumbnail
     const img = createProgressiveImage({
       tinyUrl: it.tinyUrl || null,
       thumbUrl: it.thumbUrl || it.url || null,
@@ -153,14 +136,14 @@
 
     const pill = el('div', 'sb-pill');
     pill.textContent = stateToLabel(it);
+    if (String(it.state || '').toLowerCase() === 'upscaled') {
+      pill.classList.add('is-upscaled');
+    }
     media.appendChild(pill);
 
-    // Open fullscreen on click (use high-res if available)
     media.addEventListener('click', () => {
       const full = it.url || it.thumbUrl;
       if (!full) return;
-
-      // aspect from the image we already have in the card
       const aspect =
         (img.naturalWidth && img.naturalHeight)
           ? (img.naturalWidth / img.naturalHeight)
@@ -170,10 +153,12 @@
         NBViewer.open(full, {
           imageId: it.imageId,
           createdAt: it.addedAt || undefined,
-          type: it.state || 'base-image',
+          state: it.state || 'base-image',
           lowSrc: it.thumbUrl || it.tinyUrl || null,
           aspect: aspect || null,
-          onDeleted: () => { // remove storyboard row if globally deleted in fullscreen
+          // NEW: pass upscaled URL if present so viewer uses it
+          upscaledUrl: it.upscaledUrl || null,
+          onDeleted: () => {
             if (row && row.parentNode) row.parentNode.removeChild(row);
             showEmptyIfNeeded();
           }
@@ -189,10 +174,8 @@
 
     const desc = el('textarea', 'sb-desc');
     desc.placeholder = 'Describe the shot, movement, framing, intent…';
-
     const dbDescription = (it.description || '').trim();
     desc.value = dbDescription;
-
     let lastSavedValue = dbDescription;
 
     const genRow = el('div', 'sb-actions');
@@ -272,13 +255,11 @@
         genBtn.disabled = true;
         const prev = genBtn.textContent;
         genBtn.textContent = 'Generating…';
-
         const body = {
           storyboardId,
           imageId: it.imageId,
           shotDescription: String(desc.value || '')
         };
-
         const r = await fetch('/api/storyboard/generate-description', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -286,7 +267,6 @@
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || 'Failed to generate');
-
         const newText = String(j.description || '').trim();
         if (newText) {
           desc.value = newText;
@@ -310,14 +290,93 @@
     card.appendChild(inner);
 
     const buttons = el('div', 'sb-buttons');
+
     const bUpscale = el('button', 'btn-small'); bUpscale.textContent = 'Upscale';
     const bVideo   = el('button', 'btn-small'); bVideo.textContent   = 'Generate video';
     const bDelete  = el('button', 'btn-small btn-danger'); bDelete.textContent = 'Delete';
 
-    bUpscale.onclick = () => alert('Upscale — coming soon');
+    // Disable Upscale if already upscaled
+    if (String(it.state || '').toLowerCase() === 'upscaled') {
+      bUpscale.disabled = true;
+      bUpscale.title = 'Already upscaled';
+    }
+
+    // Friendly status loop
+    const STATUS_LABELS = {
+      PENDING: "Queued…",
+      IN_QUEUE: "Queued…",
+      IN_PROGRESS: "Upscaling…",
+      COMPLETED: "Upscaled",
+      FAILED: "Retry Upscale"
+    };
+
+    let pollTimer = null;
+
+    async function pollStatus() {
+      try {
+        const r = await fetch('/api/image/upscale-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageId: it.imageId })
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed to get status');
+
+        const status = String(j.status || '').toUpperCase();
+        const upscaledUrl = j.upscaledUrl || null;
+
+        bUpscale.textContent = STATUS_LABELS[status] || status;
+
+        if (status === 'COMPLETED') {
+          // Promote UI state
+          it.state = 'upscaled';
+          if (upscaledUrl) it.upscaledUrl = upscaledUrl;
+          pill.textContent = stateToLabel(it);
+          bUpscale.disabled = true;
+
+          // Keep thumbnail; viewer will use upscaled in fullscreen automatically
+          if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+          return;
+        }
+
+        if (status === 'FAILED') {
+          bUpscale.disabled = false;
+          if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+          return;
+        }
+
+        // Keep polling
+        pollTimer = setTimeout(pollStatus, 3000);
+      } catch (e) {
+        // Back off on error
+        pollTimer = setTimeout(pollStatus, 5000);
+      }
+    }
+
+    bUpscale.onclick = async () => {
+      try {
+        bUpscale.disabled = true;
+        bUpscale.textContent = "Queueing…";
+        const r = await fetch('/api/image/upscale', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageId: it.imageId })
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed to start upscaling');
+
+        // Immediately show status and begin polling
+        bUpscale.textContent = STATUS_LABELS[String(j.status || 'PENDING').toUpperCase()] || "Queued…";
+        pollStatus();
+      } catch (e) {
+        alert(e.message || e);
+        bUpscale.disabled = false;
+        bUpscale.textContent = "Upscale";
+      }
+    };
+
     bVideo.onclick   = () => alert('Generate video — coming soon');
 
-    // NEW: pretty confirm + remove row after success
     bDelete.onclick  = async () => {
       const ok = await niceConfirm({
         title: "Remove from storyboard",
@@ -361,7 +420,6 @@
     if (empty) empty.style.display = has ? "none" : "block";
   }
 
-  /* ---------- Load Storyboard ---------- */
   async function load() {
     try {
       headCard.innerHTML = "<div class='hint'>Loading…</div>";
@@ -369,6 +427,7 @@
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed to load");
       const sb = j || {};
+
       pageTitle.textContent = sb.title || "Storyboard";
       headCard.innerHTML = `
         <div class="row" style="align-items:center;justify-content:space-between">
@@ -386,7 +445,6 @@
     }
   }
 
-  /* ---------- Simple drag to reorder (save immediately) ---------- */
   let dragEl = null;
   let placeholder = null;
 
@@ -426,14 +484,14 @@
     itemsWrap.insertBefore(dragEl, after);
     placeholder.parentNode.removeChild(placeholder);
     placeholder = null;
-
     dragEl.classList.remove('dragging');
+
     const rows = Array.from(itemsWrap.querySelectorAll('.sb-item'));
     rows.forEach((r, i) => r.dataset.orderIndex = String((i + 1) * GAP));
 
-    // Save new order for the moved item only (enough for consistent ordering)
     const newIndex = Number(dragEl.dataset.orderIndex || 0);
     const imageId = dragEl.dataset.imageId;
+
     try {
       const r = await fetch('/api/storyboard/reorder', {
         method: 'POST',

@@ -1,7 +1,3 @@
-// Archive page with tiny (blur-up) -> thumbnail swap,
-// fullscreen now receives lowSrc + aspect to avoid layout shift.
-// Uses "state" (not "type") in the overlay and fullscreen meta.
-
 const $ = (id) => document.getElementById(id);
 const grid = $("grid");
 const empty = $("empty");
@@ -12,15 +8,16 @@ if (!grid || !sentinel) {
 }
 
 function el(tag, cls) { const n = document.createElement(tag); if (cls) n.className = cls; return n; }
+
 function nearBottom(px = 300) {
   const doc = document.documentElement;
   const scrollTop = (window.pageYOffset || doc.scrollTop) - (doc.clientTop || 0);
   const remaining = doc.scrollHeight - (scrollTop + window.innerHeight);
   return remaining < px;
 }
+
 function setEmptyVisibility() { if (empty) empty.style.display = grid.children.length ? "none" : "block"; }
 
-/* ========== Progressive images (tiny -> thumb) ========== */
 function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }) {
   const img = document.createElement("img");
   img.decoding = "async";
@@ -49,7 +46,6 @@ function createProgressiveImage({ tinyUrl, thumbUrl, alt = "" }) {
   return img;
 }
 
-/* ========== Card renderer (pass lowSrc + aspect to fullscreen) ========== */
 function cardForItem(item, onDeleted) {
   const card = el("div", "card-gal");
   card.style.position = "relative";
@@ -63,7 +59,6 @@ function cardForItem(item, onDeleted) {
   link.appendChild(img);
   card.appendChild(link);
 
-  // Hover overlay
   if (window.NBViewer && typeof NBViewer.attachHoverOverlay === "function") {
     const overlay = NBViewer.attachHoverOverlay(
       card,
@@ -72,7 +67,9 @@ function cardForItem(item, onDeleted) {
         id: item.id,
         createdAt: item.createdAt,
         state: item.state || "base-image",
-        fullUrl: item.url || null       // <-- provide hi-res URL for downloads
+        fullUrl: item.url || null,
+        // NEW: pass upscaledUrl so viewer prefers it
+        upscaledUrl: item.upscaledUrl || null
       },
       onDeleted
     );
@@ -89,19 +86,21 @@ function cardForItem(item, onDeleted) {
   link.addEventListener("click", (e) => {
     e.preventDefault();
     if (!window.NBViewer || !NBViewer.open) return;
-
-    // Compute an aspect ratio from the image we already have (no extra reads)
     const aspect = (img.naturalWidth && img.naturalHeight)
       ? (img.naturalWidth / img.naturalHeight)
       : (img.clientWidth && img.clientHeight ? img.clientWidth / img.clientHeight : null);
 
-    NBViewer.open(item.url || item.thumbUrl, {
+    // NEW: choose base hi-res for initial URL; NBViewer will switch to upscaled if state === "upscaled"
+    const openUrl = item.url || item.thumbUrl;
+
+    NBViewer.open(openUrl, {
       imageId: item.id,
       createdAt: item.createdAt,
       state: item.state || "base-image",
-      lowSrc: item.thumbUrl || item.tinyUrl || null,  // show blurred first
-      aspect: aspect || null,                          // lock size → no shift
-      onDeleted: () => {                               // <-- remove from grid after fullscreen delete
+      lowSrc: item.thumbUrl || item.tinyUrl || null,
+      aspect: aspect || null,
+      upscaledUrl: item.upscaledUrl || null,
+      onDeleted: () => {
         if (card && card.parentNode) card.parentNode.removeChild(card);
         setEmptyVisibility();
       }
@@ -111,7 +110,6 @@ function cardForItem(item, onDeleted) {
   return card;
 }
 
-/* ========== Paging state & fetch ========== */
 let cursor = null;
 let isLoading = false;
 let isEnd = false;
@@ -139,6 +137,7 @@ async function fetchPage() {
       const id = String(it.id || "");
       if (!id || seen.has(id)) continue;
       seen.add(id);
+
       const card = cardForItem(
         {
           id,
@@ -146,13 +145,13 @@ async function fetchPage() {
           thumbUrl: it.thumbUrl || null,
           tinyUrl: it.tinyUrl || null,
           createdAt: it.createdAt || null,
-          state: it.state || "base-image"
+          state: it.state || "base-image",
+          upscaledUrl: it.upscaledUrl || null
         },
         () => { seen.delete(id); }
       );
       frag.appendChild(card);
     }
-
     grid.appendChild(frag);
 
     cursor = next;
@@ -171,7 +170,6 @@ async function fetchPage() {
   }
 }
 
-/* ========== IO + kickoff ========== */
 const PREFILL_MAX_LOOPS = 2;
 async function ensureFilledOnceOrTwice() {
   let loops = 0;
@@ -210,6 +208,7 @@ function onScrollOrResize() {
     if (nearBottom(300)) await fetchPage();
   });
 }
+
 window.addEventListener("scroll", onScrollOrResize, { passive: true });
 window.addEventListener("resize", onScrollOrResize, { passive: true });
 window.addEventListener("orientationchange", onScrollOrResize);

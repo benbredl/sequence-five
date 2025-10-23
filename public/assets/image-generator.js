@@ -1,26 +1,18 @@
-// public/assets/image-generator.js
-// Generator page logic — prompt is ONLY enhanced when the user clicks “Enhance text”.
-// We pass/annotate image state (not type) to the viewer overlays.
-
 (function () {
   const $ = (id) => document.getElementById(id);
-
   const drop = $("drop");
   const fileInput = $("file");
   const dropInner = $("dropInner");
   const removeUpload = $("removeUpload");
   const uploadMeta = $("uploadMeta");
-
   const promptEl = $("prompt");
   const enhanceBtn = $("enhance");
   const generateBtn = $("generate");
-
   const resultsGrid = $("resultsGrid");
   const empty = $("empty");
   const inprogEl = $("inprog");
   const limitEl = $("limit");
   const showAllLink = $("showAll");
-
   const MAX_PARALLEL = Number((limitEl && limitEl.textContent) || "5") || 5;
 
   let inProgress = 0;
@@ -36,22 +28,18 @@
       #${drop ? drop.id : "drop"}:hover { cursor: pointer; }
       #${drop ? drop.id : "drop"}.is-hover:not(.has-upload) { background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%); border-color: color-mix(in oklab, var(--line-soft) 60%, white); box-shadow: 0 2px 12px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.04); transform: translateY(-1px); }
       #${drop ? drop.id : "drop"}.is-drag:not(.has-upload) { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border-style: dashed; border-color: color-mix(in oklab, var(--brand, #7c8cff) 50%, white 20%); box-shadow: 0 0 0 3px rgba(124,140,255,.15), 0 8px 24px rgba(0,0,0,.20); }
-
       #prompt, input#prompt, textarea#prompt { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
       #prompt:focus, #prompt:focus-visible, input#prompt:focus, input#prompt:focus-visible, textarea#prompt:focus, textarea#prompt:focus-visible {
         outline: none !important; border-color: color-mix(in oklab, var(--line-soft) 60%, white);
         box-shadow: 0 2px 12px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.04), 0 0 0 3px rgba(255,255,255,.14);
         background: radial-gradient(120% 120% at 50% 0%, var(--glass1) 0%, var(--glass2) 100%);
       }
-
-      /* Subtle flash when enhanced text arrives */
       @keyframes ig-prompt-flash {
         0%   { box-shadow: 0 0 0 0 rgba(79,141,253,0); border-color: var(--line-soft); }
         20%  { box-shadow: 0 0 0 2px rgba(79,141,253,.45); border-color: rgba(79,141,253,.85); }
         100% { box-shadow: 0 0 0 0 rgba(79,141,253,0); border-color: var(--line-soft); }
       }
       #prompt.ig-updated { animation: ig-prompt-flash 1.2s ease-out 1; }
-
       img.blur-up { filter: blur(14px); transform: scale(1.02); transition: filter .35s ease, transform .35s ease, opacity .35s ease; display: block; width: 100%; height: auto; object-fit: cover; }
       img.blur-up.is-loaded { filter: blur(0); transform: none; }
     `;
@@ -63,23 +51,28 @@
     if (inprogEl) inprogEl.textContent = String(inProgress);
     if (generateBtn) generateBtn.disabled = inProgress >= MAX_PARALLEL;
   }
+
   function bytes(n) {
     if (n == null) return "";
     if (n < 1024) return `${n} B`;
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
     return `${(n / (1024 * 1024)).toFixed(2)} MB`;
   }
+
   function createEl(tag, cls) { const el = document.createElement(tag); if (cls) el.className = cls; return el; }
+
   function showEmptyIfNeeded() {
     const has = resultsGrid && resultsGrid.children.length > 0;
     if (empty) empty.style.display = has ? "none" : "block";
   }
+
   async function jfetch(url, opts) {
     const r = await fetch(url, opts);
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
     return j;
   }
+
   async function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const fr = new FileReader();
@@ -98,13 +91,13 @@
       img.onerror = () => resolve({ w: 0, h: 0 });
       img.src = dataUrl;
     });
-
     currentUpload = { dataUrl, name: file.name, size: file.size, type: file.type, width: dim.w, height: dim.h };
 
     drop.classList.add("has-upload");
     drop.classList.remove("is-drag");
     drop.classList.remove("is-hover");
     dropInner.innerHTML = "";
+
     const preview = document.createElement("img");
     preview.className = "preview";
     preview.alt = "Uploaded base image";
@@ -116,6 +109,7 @@
     uploadMeta.textContent = `${file.name} — ${bytes(file.size)} — ${dim.w}×${dim.h}`;
     removeUpload.style.display = "inline-flex";
   }
+
   function clearUpload() {
     currentUpload = null;
     uploadMeta.textContent = "";
@@ -127,10 +121,10 @@
     if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
     dropInner.innerHTML = "<div>Upload base image (optional)</div>";
   }
+
   if (drop) {
     drop.addEventListener("mouseenter", () => drop.classList.add("is-hover"));
     drop.addEventListener("mouseleave", () => drop.classList.remove("is-hover"));
-
     drop.addEventListener("dragenter", (e) => { e.preventDefault(); drop.classList.add("is-drag"); });
     drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("is-drag"); });
     drop.addEventListener("dragleave", (e) => { if (!drop.contains(e.relatedTarget)) drop.classList.remove("is-drag"); });
@@ -140,7 +134,6 @@
       const file = (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) || null;
       if (file) handleFile(file);
     });
-
     drop.addEventListener("click", () => fileInput.click());
     drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
   }
@@ -157,9 +150,7 @@
     img.alt = alt;
     img.className = "blur-up";
     img.src = tinyUrl || thumbUrl;
-
     const settle = () => { img.classList.add("is-loaded"); if (typeof onSettled === "function") onSettled(); };
-
     if (tinyUrl && thumbUrl && thumbUrl !== tinyUrl) {
       const hi = new Image();
       hi.decoding = "async";
@@ -182,8 +173,14 @@
     return img;
   }
 
-  /* -------------------- Card renderer (lightweight) -------------------- */
-  function cardTile({ id, tinyUrl, thumbUrl, url, createdAt, state }, onDeleted) {
+  // Prefer upscaled full URL if available and state is "upscaled"
+  function pickFullUrl({ url, thumbUrl, upscaledUrl, state }) {
+    const isUpscaled = String(state || "").toLowerCase() === "upscaled";
+    if (isUpscaled && upscaledUrl) return upscaledUrl;
+    return url || thumbUrl || upscaledUrl || "";
+  }
+
+  function cardTile({ id, tinyUrl, thumbUrl, url, upscaledUrl, createdAt, state }, onDeleted) {
     const card = createEl("div", "card-gal");
     card.style.position = "relative";
 
@@ -199,6 +196,7 @@
     img.style.width = "100%";
     img.style.height = "100%";
     img.style.objectFit = "cover";
+
     link.appendChild(img);
     card.appendChild(link);
 
@@ -206,28 +204,35 @@
       const overlay = NBViewer.attachHoverOverlay(
         card,
         thumbUrl || url || "",
-        { id, createdAt, state, fullUrl: url || null }, // <-- provide hi-res URL for downloads
+        {
+          id,
+          createdAt,
+          state,
+          // pass the best hi-res URL for downloads (prefer upscaled)
+          fullUrl: pickFullUrl({ url, thumbUrl, upscaledUrl, state }) || null
+        },
         onDeleted
       );
       card.appendChild(overlay);
     }
 
-    // Fullscreen — pass lowSrc (thumb) and aspect from the tile we already have
+    // Fullscreen — prefer upscaled variant if available
     link.addEventListener("click", (e) => {
       e.preventDefault();
       if (!window.NBViewer || !NBViewer.open) return;
-
       const aspect = (img.naturalWidth && img.naturalHeight)
         ? (img.naturalWidth / img.naturalHeight)
         : (img.clientWidth && img.clientHeight ? img.clientWidth / img.clientHeight : null);
 
-      NBViewer.open(url || thumbUrl, {
+      const fullForViewer = pickFullUrl({ url, thumbUrl, upscaledUrl, state });
+
+      NBViewer.open(fullForViewer, {
         imageId: id,
         createdAt,
         state,
         lowSrc: thumbUrl || tinyUrl || null,
         aspect: aspect || null,
-        onDeleted: () => { // <-- also remove after fullscreen delete
+        onDeleted: () => {
           if (card && card.parentNode) card.parentNode.removeChild(card);
           showEmptyIfNeeded();
         }
@@ -252,6 +257,8 @@
           tinyUrl: it.tinyUrl || null,
           thumbUrl: it.thumbUrl || null,
           url: it.url || null,
+          // pick up upscaledUrl if the API includes it now
+          upscaledUrl: it.upscaledUrl || null,
           createdAt: it.createdAt || null,
           state: it.state || "base-image",
         });
@@ -267,7 +274,6 @@
   function skeletonTile() {
     const card = createEl("div", "card-gal");
     card.style.position = "relative";
-
     const box = createEl("div");
     box.style.position = "relative";
     box.style.width = "100%";
@@ -276,17 +282,14 @@
     box.style.overflow = "hidden";
     box.style.border = "1px solid var(--line-soft)";
     box.style.background = "linear-gradient(180deg, var(--glass1), var(--glass2))";
-
     const sk = createEl("div", "skeleton");
     const sp = createEl("div", "spinner-lg");
     sk.appendChild(sp);
     box.appendChild(sk);
     card.appendChild(box);
-
     return { card, box };
   }
 
-  // NOTE: We annotate newly created images with "state" for UI purposes.
   function currentStateFromContext() {
     return "base-image";
   }
@@ -301,7 +304,7 @@
           createdAt: meta.createdAt ? meta.createdAt.toISOString() : new Date().toISOString(),
           state: meta.state || "base-image",
           archiveUrl: meta.archiveUrl || null,
-          fullUrl: meta.archiveUrl || null // ensure hi-res downloads even before refresh
+          fullUrl: meta.archiveUrl || null
         },
         meta.onDeleted
       );
@@ -309,7 +312,6 @@
     }
   }
 
-  // ---- Enhance only on explicit click ----
   enhanceBtn && enhanceBtn.addEventListener("click", async () => {
     const text = promptEl.value.trim();
     if (!text) { alert("Enter a prompt first."); return; }
@@ -320,12 +322,9 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: text, systemPrompt: (window.DEFAULT_SYSTEM_PROMPT || "") })
       });
-      // Replace the input with the enhanced text ONLY because user asked for it.
       promptEl.value = String(j.enhancedPrompt || text);
-      // Subtle indicator flash (similar idea to storyboard blue cue)
-      promptEl.classList.remove("ig-updated"); // restart animation if clicked twice
-      // force reflow to replay keyframes
-      // eslint-disable-next-line no-unused-expressions
+      promptEl.classList.remove("ig-updated");
+      // reflow
       promptEl.offsetWidth;
       promptEl.classList.add("ig-updated");
       setTimeout(() => promptEl.classList.remove("ig-updated"), 1300);
@@ -333,7 +332,6 @@
     finally { enhanceBtn.disabled = false; }
   });
 
-  // ---- Generate: NEVER auto-enhance; send exactly what's in the box ----
   generateBtn && generateBtn.addEventListener("click", async () => {
     const text = promptEl.value.trim();
     if (!text) { alert("Please write a prompt."); return; }
@@ -342,7 +340,6 @@
     const { card, box } = skeletonTile();
     resultsGrid.prepend(card);
     showEmptyIfNeeded();
-
     setInProgress(inProgress + 1);
 
     try {
@@ -376,6 +373,7 @@
       img.src = objUrl;
       box.appendChild(img);
 
+      // For fresh generations we only know base (no upscaled yet)
       addHoverOverlay(card, objUrl, {
         id,
         archiveUrl,
@@ -393,7 +391,7 @@
             imageId: id || null,
             createdAt: new Date(),
             state: currentStateFromContext(),
-            onDeleted: () => { // <-- also remove after fullscreen delete
+            onDeleted: () => {
               if (card && card.parentNode) card.parentNode.removeChild(card);
               showEmptyIfNeeded();
             }

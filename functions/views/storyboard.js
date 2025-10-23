@@ -4,9 +4,6 @@ import { BASE_STYLES } from "./baseStyles.js";
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-  "<link rel='preconnect' href='https://fonts.googleapis.com'>",
-  "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>",
-  "<link href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;600&display=swap' rel='stylesheet'>",
   "<title>Sequence Five — Storyboard</title>",
   "<link rel='icon' href='/images/app-logo.svg'/>",
   "<style>",
@@ -99,6 +96,12 @@ export const HTML = [
     font-size:11px; font-weight:400; letter-spacing:.2px;
     pointer-events:none; /* don’t block the click-to-open */
   }
+  /* storyboard pill color when upscaled */
+.sb-pill.is-upscaled{
+  border-color:#6ee7b7;
+  color:#d1fae5;
+  background:linear-gradient(180deg,rgba(110,231,183,.16),rgba(110,231,183,.06));
+}
 
   .sb-right{ display:flex; flex-direction:column; min-height:0; }
 

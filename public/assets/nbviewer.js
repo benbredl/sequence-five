@@ -1,7 +1,6 @@
 (() => {
   if (window.NBViewer) return;
 
-  // ----- Icons -----
   const SVG_DOWNLOAD =
     "<svg viewBox='0 0 24 24' width='16' height='16' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>";
   const SVG_ADD =
@@ -9,48 +8,42 @@
   const SVG_DELETE =
     "<svg viewBox='0 0 24 24' width='16' height='16' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/></svg>";
 
-  // ----- Styles -----
   function injectStyle() {
     if (document.getElementById("viewer-style")) return;
     const css =
-      /* Backdrop & wrap */
       ".viewer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;animation:vbIn .18s ease forwards}" +
       "@keyframes vbIn{to{opacity:1}}" +
       ".viewer-wrap{position:relative;display:inline-block;max-width:92vw;max-height:92vh}" +
-      /* Image fills the *fixed* wrap size we compute upfront (prevents layout shift) */
       ".viewer-img{width:100%;height:100%;object-fit:contain;border-radius:18px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);transition:filter .18s ease;display:block}" +
       ".viewer-img.blur-up{filter:blur(14px);transform:translateZ(0)}" +
       ".viewer-img.is-sharp{filter:none}" +
       ".viewer-backdrop.blurred .viewer-img{filter:blur(10px) brightness(.65)}" +
-
-      /* Fullscreen bottom bars (now hidden until hi-res ready) */
       ".viewer-bottombar{position:absolute;right:16px;bottom:12px;display:flex;gap:4px;align-items:center;z-index:3;opacity:0;pointer-events:none;transition:opacity .20s ease}" +
       ".viewer-infobar{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:2;background:linear-gradient(0deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%);opacity:0;pointer-events:none;transition:opacity .20s ease}" +
-
-      /* When hi-res has loaded, fade HUD in */
       ".viewer-wrap.hi-ready .viewer-bottombar, .viewer-wrap.hi-ready .viewer-infobar{opacity:1;pointer-events:auto}" +
-
       ".viewer-actions{display:flex;gap:4px;align-items:center}" +
-      ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;outline:none;background:transparent;padding:0;margin:0;cursor:pointer;transition:transform .06s ease, filter .18s ease;opacity:.95;color:#fff;box-shadow:none}" +
-      ".icon-btn[disabled]{opacity:.5;cursor:not-allowed}" +
-      ".icon-btn:hover{filter:brightness(1.08)}" +
+      ".icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;outline:none;background:transparent;padding:0;margin:0;cursor:pointer;transition:transform .06s ease, filter .18s ease, color .18s ease, opacity .18s ease;opacity:.7;color:#fff;box-shadow:none}" +
+      ".icon-btn[disabled]{opacity:.45;cursor:not-allowed}" +
+      ".icon-btn:hover{filter:brightness(1.08);color:var(--blue,#4F8DFD);opacity:1}" +
       ".icon-btn:active{transform:translateY(1px)}" +
       ".icon-btn svg{width:16px;height:16px;display:block}" +
-
-      /* Infobar content */
-      ".viewer-info-left{display:flex;align-items:center;gap:10px;font-size:12px;color:#e6e9ff;opacity:.95}" +
-      ".viewer-ts{font-size:11px;color:#e6e9ff;opacity:.95}" +
-      ".viewer-res{font-size:11px;color:#e6e9ff;opacity:.9}" +
+      ".viewer-info-left{display:flex;align-items:center;gap:10px;font-size:12px;color:#fff;opacity:.8}" +
+      ".viewer-ts{font-size:11px;color:#fff;opacity:.8}" +
+      ".viewer-res{font-size:11px;color:#fff;opacity:.75}" +
       ".viewer-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid rgba(255,255,255,.8);background:transparent;color:#ffffff;padding:2px 8px;font-size:11px;font-weight:400;letter-spacing:.2px;text-transform:none;opacity:.95}" +
-
-      /* Grid overlay (unchanged) */
-      ".gal-overlay{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 70%, rgba(0,0,0,.85) 100%);pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .12s ease, transform .12s ease}" +
-      ".gal-bottombar{position:absolute;left:12px;right:12px;bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:auto}" +
-      ".gal-meta{display:flex;align-items:center;gap:8px}" +
-      ".gal-actions{display:flex;align-items:center;gap:4px}" +
-      ".gal-ts{font-size:11px;color:#e6e9ff;opacity:.92}" +
-
-      /* --- Nice confirm modal --- */
+      ".viewer-pill.is-upscaled{border-color:#6ee7b7;color:#d1fae5;background:linear-gradient(180deg,rgba(110,231,183,.16),rgba(110,231,183,.06))}" +
+      /* --- Archive overlay layout --- */
+      ".gal-overlay{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 70%, rgba(0,0,0,.85) 100%);pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .18s ease, transform .18s ease}" +
+      ".card-gal:hover .gal-overlay{opacity:1;transform:translateY(0)}" +
+      ".gal-bottombar{position:absolute;left:12px;right:12px;bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;pointer-events:auto}" +
+      ".gal-left{display:flex;flex-direction:column;gap:4px;align-items:flex-start}" +
+      ".gal-ts{font-size:10px;color:#fff;opacity:.75;margin-left:2px;transform:translateY(-2px)}" +
+      ".gal-actions{display:flex;align-items:center;gap:6px}" +
+      ".gal-actions .icon-btn{color:#ffffff;opacity:.7;transition:color .18s ease, transform .06s ease, filter .18s ease, opacity .18s ease}" +
+      ".gal-actions .icon-btn:hover,.gal-actions .icon-btn:focus{color:var(--blue, #4F8DFD);filter:brightness(1.1);opacity:1}" +
+      ".gal-topright{position:absolute;top:10px;right:12px;display:flex;align-items:center;pointer-events:auto}" +
+      ".gal-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.8);background:rgba(0,0,0,.25);color:#fff;font-size:11px;font-weight:600;letter-spacing:.2px}" +
+      ".gal-pill.is-upscaled{border-color:#6ee7b7;color:#d1fae5;background:linear-gradient(180deg,rgba(110,231,183,.16),rgba(110,231,183,.06))}" +
       ".nbv-confirm-back{position:fixed;inset:0;background:rgba(6,8,18,.62);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:10003}" +
       ".nbv-confirm{width:min(520px,92vw);background:rgba(18,22,38,.82);border:1px solid rgba(71,80,124,.8);border-radius:16px;box-shadow:0 24px 80px rgba(2,6,23,.65), inset 0 1px 0 rgba(255,255,255,.06);padding:16px;color:#e6e9ff}" +
       ".nbv-confirm h3{margin:0 0 8px 0;font-size:18px}" +
@@ -63,10 +56,8 @@
     st.appendChild(document.createTextNode(css));
     document.head.appendChild(st);
   }
-
   injectStyle();
 
-  // ----- Helpers -----
   function normalizeUrl(input) {
     if (typeof input === "string") return input;
     if (input instanceof URL) return input.href;
@@ -81,7 +72,7 @@
   function formatTimestamp(d) {
     try {
       const date = d instanceof Date ? d : new Date(d);
-      const day = date.getDate();
+    const day = date.getDate();
       const monthName = date.toLocaleString(undefined, { month: "long" });
       const suffix = (n) => {
         if (n % 10 === 1 && n % 100 !== 11) return "st";
@@ -145,7 +136,6 @@
     }
   }
 
-  // Nice confirm modal (replaces window.confirm)
   function niceConfirm({ title = "Are you sure?", message = "", confirmText = "Delete", cancelText = "Cancel", danger = true } = {}) {
     return new Promise((resolve) => {
       const back = document.createElement("div");
@@ -161,9 +151,7 @@
         `</div>`;
       back.appendChild(sheet);
       document.body.appendChild(back);
-
       const [btnCancel, btnOk] = sheet.querySelectorAll(".nbv-btn");
-
       function close(val) {
         if (back.parentNode) back.parentNode.removeChild(back);
         resolve(val);
@@ -174,7 +162,6 @@
     });
   }
 
-  // State/Type label formatter (prefer state, fallback to type)
   function stateToLabel(raw) {
     const s = String(raw || "").toLowerCase().trim();
     if (!s) return "";
@@ -184,7 +171,6 @@
     return s;
   }
 
-  // ----- Storyboard picker (unchanged) -----
   function openPicker(imageId, backdropEl) {
     const back = document.createElement("div");
     back.style.cssText =
@@ -199,9 +185,7 @@
       "<div style='margin-top:12px;display:flex;justify-content:flex-end'><button id='nbv-close' style='padding:7px 12px;border:1px solid #2f375a;border-radius:999px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));color:#c7ceed;font-weight:700'>Close</button></div>";
     back.appendChild(sheet);
     document.body.appendChild(back);
-
     if (backdropEl) backdropEl.classList.add("blurred");
-
     function close() {
       if (back.parentNode) back.parentNode.removeChild(back);
       if (backdropEl) backdropEl.classList.remove("blurred");
@@ -249,24 +233,19 @@
       });
   }
 
-  // ----- Fullscreen viewer (blur-up + fixed sizing) -----
-  /**
-   * open(urlLike, {
-   *   imageId?, createdAt?,
-   *   state?, type?,
-   *   lowSrc?: string,
-   *   aspect?: number,
-   *   onDeleted?: Function
-   * })
-   */
   function open(urlLike, opts) {
     injectStyle();
-    const url = normalizeUrl(urlLike);
-    if (!url) return;
-
     opts = opts || {};
     const lowSrc = typeof opts.lowSrc === "string" ? opts.lowSrc : null;
-    const knownAspect = Number(opts.aspect || 0) > 0 ? Number(opts.aspect) : null;
+
+    // Prefer upscaled if state says so and provided
+    const preferUpscaled = String(opts.state || "").toLowerCase() === "upscaled";
+    const preferredUrl = (preferUpscaled && typeof opts.upscaledUrl === "string" && opts.upscaledUrl) || urlLike;
+
+    const url = normalizeUrl(preferredUrl);
+    if (!url) return;
+
+    let aspectVal = Number(opts.aspect || 0) > 0 ? Number(opts.aspect) : null;
 
     const back = document.createElement("div");
     back.className = "viewer-backdrop";
@@ -274,11 +253,11 @@
     const wrap = document.createElement("div");
     wrap.className = "viewer-wrap";
 
-    // Size the wrap *before* we show the image to avoid any jump.
-    const maxW = Math.floor(window.innerWidth * 0.92);
-    const maxH = Math.floor(window.innerHeight * 0.92);
-    if (knownAspect) {
-      const sz = computeFitSize(knownAspect, maxW, maxH);
+    function updateWrapSize() {
+      const maxW = Math.floor(window.innerWidth * 0.92);
+      const maxH = Math.floor(window.innerHeight * 0.92);
+      if (!aspectVal) return; // wait until we know aspect
+      const sz = computeFitSize(aspectVal, maxW, maxH);
       if (sz) {
         wrap.style.width = sz.width + "px";
         wrap.style.height = sz.height + "px";
@@ -289,8 +268,6 @@
     img.className = "viewer-img";
     img.alt = "preview";
     img.decoding = "async";
-
-    // Start with the low-res (if provided), blurred
     if (lowSrc) {
       img.src = lowSrc;
       img.classList.add("blur-up");
@@ -298,10 +275,8 @@
       img.src = url;
     }
 
-    // --- Infobar (timestamp, resolution, state pill) ---
     const infobar = document.createElement("div");
     infobar.className = "viewer-infobar";
-
     const infoLeft = document.createElement("div");
     infoLeft.className = "viewer-info-left";
 
@@ -313,21 +288,22 @@
     res.className = "viewer-res";
     res.textContent = "";
 
+    // --- state pill (ALWAYS SHOW in fullscreen, even for base-image) ---
     const pill = document.createElement("span");
-    pill.className = "viewer-pill";
     const rawState = (opts.state != null ? opts.state : opts.type);
-    const stateLabel = stateToLabel(rawState) || "";
-    if (stateLabel) pill.textContent = stateLabel;
+    const stateLabel = stateToLabel(rawState) || "base image";
+    pill.className = "viewer-pill";
+    pill.textContent = stateLabel;
+    if (stateLabel === "upscaled") pill.classList.add("is-upscaled");
 
     if (ts.textContent) infoLeft.appendChild(ts);
     infoLeft.appendChild(res);
-    if (stateLabel) infoLeft.appendChild(pill);
+    infoLeft.appendChild(pill); // always append
     infobar.appendChild(infoLeft);
 
     // --- Bottom-right actions bar ---
     const bottombar = document.createElement("div");
     bottombar.className = "viewer-bottombar";
-
     const actions = document.createElement("div");
     actions.className = "viewer-actions";
 
@@ -339,7 +315,7 @@
       e.stopPropagation();
       const created = opts.createdAt ? new Date(opts.createdAt) : new Date();
       const fname = `GeneratedImage_${formatTsForFilename(created)}.jpg`;
-      forceDownload(url, fname); // always hi-res
+      forceDownload(url, fname);
     };
 
     const bAdd = document.createElement("button");
@@ -376,7 +352,7 @@
           });
           const j = await r.json();
           if (!r.ok) throw new Error(j.error || "Failed");
-          if (typeof opts.onDeleted === "function") opts.onDeleted(); // <-- inform grid to remove
+          if (typeof opts.onDeleted === "function") opts.onDeleted();
           close();
         } catch (err) {
           alert(err.message || err);
@@ -398,20 +374,17 @@
     back.appendChild(wrap);
     document.body.appendChild(back);
 
-    // Hi-res reveal
     const hi = new Image();
     hi.decoding = "async";
     hi.src = url;
 
     const revealHi = () => {
-      if (!knownAspect && hi.naturalWidth && hi.naturalHeight) {
-        const aspect = hi.naturalWidth / hi.naturalHeight;
-        const sz = computeFitSize(aspect, maxW, maxH);
-        if (sz) {
-          wrap.style.width = sz.width + "px";
-          wrap.style.height = sz.height + "px";
-        }
+      // Set/derive aspect, then size wrap responsively
+      if (!aspectVal && hi.naturalWidth && hi.naturalHeight) {
+        aspectVal = hi.naturalWidth / hi.naturalHeight;
       }
+      updateWrapSize();
+
       if (img.src !== url) img.src = url;
       img.classList.remove("blur-up");
       img.classList.add("is-sharp");
@@ -420,7 +393,7 @@
         res.textContent = `${hi.naturalWidth}×${hi.naturalHeight}`;
       }
       if (!opts.createdAt) ts.textContent = formatTimestamp(new Date());
-      wrap.classList.add("hi-ready"); // HUD fade-in
+      wrap.classList.add("hi-ready");
     };
 
     const setResFromHi = () => {
@@ -440,23 +413,44 @@
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    // --- Responsive: update viewer-wrap on window resize (both width & height) ---
+    let raf = null;
+    function onResize() {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        updateWrapSize();
+      });
+    }
+    window.addEventListener("resize", onResize);
+
     function close() {
       if (back.parentNode) {
         back.parentNode.removeChild(back);
         document.body.style.overflow = prevOverflow;
         document.removeEventListener("keydown", onKey);
+        window.removeEventListener("resize", onResize);
+        if (raf) cancelAnimationFrame(raf);
       }
     }
+
     function onKey(e) { if (e.key === "Escape") close(); }
     back.addEventListener("click", (e) => { if (e.target === back) close(); });
     document.addEventListener("keydown", onKey);
+
+    // If an explicit aspect was provided, size immediately (before hi loads)
+    if (aspectVal) updateWrapSize();
   }
 
-  // ----- Card hover overlay -----
   function attachHoverOverlay(cardEl, imgUrlLike, item, onDeleted) {
     injectStyle();
-    const imgUrl = normalizeUrl(imgUrlLike);
 
+    const preferUpscaled = String(item?.state || "").toLowerCase() === "upscaled";
+    const effectiveHiUrl = (preferUpscaled && item?.upscaledUrl)
+      ? item.upscaledUrl
+      : (item && (item.fullUrl || item.archiveUrl)) || imgUrlLike;
+
+    const imgUrl = normalizeUrl(imgUrlLike);
     const cs = getComputedStyle(cardEl);
     if (cs.position === "static" || !cs.position) cardEl.style.position = "relative";
     if (cs.overflow !== "hidden") cardEl.style.overflow = "hidden";
@@ -464,15 +458,16 @@
     const overlay = document.createElement("div");
     overlay.className = "gal-overlay";
 
+    // Bottom bar (timestamp left, actions right)
     const bottom = document.createElement("div");
     bottom.className = "gal-bottombar";
 
-    const meta = document.createElement("div");
-    meta.className = "gal-meta";
+    const left = document.createElement("div");
+    left.className = "gal-left";
+
     const dt = document.createElement("span");
     dt.className = "gal-ts";
     dt.textContent = item?.createdAt ? formatTimestamp(item.createdAt) : "";
-    meta.appendChild(dt);
 
     const actions = document.createElement("div");
     actions.className = "gal-actions";
@@ -483,7 +478,7 @@
     aDown.title = "Download";
     aDown.onclick = (e) => {
       e.stopPropagation();
-      const hiUrl = (item && (item.fullUrl || item.archiveUrl)) || imgUrl; // prefer hi-res
+      const hiUrl = effectiveHiUrl || imgUrl;
       const created = item?.createdAt ? new Date(item.createdAt) : new Date();
       const fname = `GeneratedImage_${formatTsForFilename(created)}.jpg`;
       if (hiUrl) forceDownload(hiUrl, fname);
@@ -527,14 +522,30 @@
       }
     };
 
+    // Top-right state pill — only if not base-image (archive overlay rule unchanged)
+    const label = stateToLabel(item?.state) || "";
+    const showPill = label && label !== "base image";
+    if (showPill) {
+      const topRight = document.createElement("div");
+      topRight.className = "gal-topright";
+      const pill = document.createElement("span");
+      pill.className = "gal-pill";
+      pill.textContent = label;
+      if (label.toLowerCase() === "upscaled") pill.classList.add("is-upscaled");
+      topRight.appendChild(pill);
+      overlay.appendChild(topRight);
+    }
+
+    // assemble
+    left.appendChild(dt);
     actions.appendChild(aDown);
     actions.appendChild(aAdd);
     actions.appendChild(aDel);
-
-    bottom.appendChild(meta);
+    bottom.appendChild(left);
     bottom.appendChild(actions);
     overlay.appendChild(bottom);
 
+    // JS fallback for show/hide (in addition to CSS :hover)
     cardEl.addEventListener("mouseenter", () => {
       overlay.style.opacity = "1";
       overlay.style.transform = "translateY(0)";

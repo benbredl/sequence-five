@@ -10,15 +10,11 @@ const INLINE_LOGO = `
 export const HTML = [
   "<!doctype html><html lang='en'><head><meta charset='utf-8'/>",
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-  "<link rel='preconnect' href='https://fonts.googleapis.com'>",
-  "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>",
-  "<link href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;600&display=swap' rel='stylesheet'>",
   "<title>Sequence Five — Usage</title>",
   "<link rel='icon' href='/images/app-logo.svg'/>",
   "<style>",
   BASE_STYLES,
   `
-  body{ font-family:'Open Sans', Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial !important; }
 
   .kpi,.card{
     background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));

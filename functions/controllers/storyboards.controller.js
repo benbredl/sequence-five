@@ -109,6 +109,7 @@ export async function getStoryboard(req, res) {
         url: img.url || null,
         thumbUrl: img.thumbUrl || null,
         tinyUrl: img.tinyUrl || null,
+        upscaledUrl: img.upscaledUrl || null, // <-- added so the client can use the upscaled image in fullscreen
         model: img.model || null,
         mimeType: img.mimeType || null
       };

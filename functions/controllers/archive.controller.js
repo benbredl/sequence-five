@@ -1,4 +1,3 @@
-// functions/controllers/archive.controller.js
 import { db } from "../firebase.js";
 import { err, ok } from "../utils/http.js";
 
@@ -23,17 +22,16 @@ export async function getArchive(req, res) {
         url: v.url || null,
         thumbUrl: v.thumbUrl || null,
         tinyUrl: v.tinyUrl || null,
+        // NEW: upscaled URL (if present)
+        upscaledUrl: v.upscaledUrl || null,
         path: v.path || null,
         prompt: v.prompt || null,
-        // New fields
         model: v.model || null,
         state: v.state || "base-image",
         mimeType: v.mimeType || null,
-        // removed: enhancedPrompt, modelUsed, type, width, height
         createdAt: created
       };
     });
-
     const nextCursor = snap.docs.length === limit ? snap.docs[snap.docs.length - 1].id : null;
     return ok(res, { items, nextCursor });
   } catch (e) {

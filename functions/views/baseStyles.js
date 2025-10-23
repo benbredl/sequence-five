@@ -1,13 +1,13 @@
 // functions/views/baseStyles.js
 export const BASE_STYLES = `
 /* ==== Theme: dark, transparent/glassy cards (no blue fills) ==== */
-@supports (font-variation-settings: normal) {
-  @font-face{
-    font-family:"Open Sans Var";
-    src: local("Open Sans Variable"),
-         url(https://fonts.gstatic.com/s/opensans/v40/memwYaGs126MiZpBA-UFVZ0b.woff2) format("woff2");
-    font-weight:300 800; font-display:swap;
-  }
+/* --- Global font setup (centralized) --- */
+@font-face{
+  font-family:"Open Sans Var";
+  src: local("Open Sans Variable"),
+       url(https://fonts.gstatic.com/s/opensans/v40/memwYaGs126MiZpBA-UFVZ0b.woff2) format("woff2");
+  font-weight:300 800;
+  font-display:swap;
 }
 
 :root{
@@ -37,6 +37,23 @@ export const BASE_STYLES = `
 
   --wrap-max:1200px;
   --wrap-w:60vw;
+}
+
+/* Use Open Sans everywhere by default */
+body{
+  /* keep your existing body styles, just ensure this family is first */
+  font-family:"Open Sans Var","Open Sans",Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  font-variation-settings:"wght" 400;
+}
+
+/* Ensure consistent semi-bold where needed (matches Storyboards) */
+.nav-brand .nav-title{ font-weight:600; }
+.headerbar .hgroup h1{ font-weight:600; }
+
+/* Also make buttons match (Storyboards look) */
+button,.btn,.btn-ghost,.pill,
+textarea,input,select {
+  font-family:"Open Sans Var","Open Sans",Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
 }
 
 *{box-sizing:border-box}
