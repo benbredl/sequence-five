@@ -1,4 +1,7 @@
-const BASE = "https://api.enhancor.ai/api/image-upscaler/v1";
+// functions/services/enhancor.js
+// Updated to new base URL per latest Enhancor docs.
+
+const BASE = "https://apireq.enhancor.ai/api/image-upscaler/v1";
 
 function getApiKey() {
   const key = process.env.ENHANCOR_API_KEY || "";
@@ -6,41 +9,68 @@ function getApiKey() {
   return key;
 }
 
+/**
+ * Queue an upscale job.
+ * Body required by API:
+ * {
+ *   img_url: "https://...",
+ *   webhookUrl: "https://your-host/api/webhooks/enhancor"
+ * }
+ * Returns: { requestId }
+ */
 export async function enhancorQueue({ imgUrl, webhookUrl }) {
   const key = getApiKey();
   const r = await fetch(`${BASE}/queue`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": key,
+      "x-api-key": key
     },
-    body: JSON.stringify({ img_url: String(imgUrl || ""), webhookUrl: String(webhookUrl || "") }),
+    body: JSON.stringify({
+      img_url: String(imgUrl || ""),
+      webhookUrl: String(webhookUrl || "")
+    })
   });
-  const j = await r.json().catch(() => ({}));
+
+  let j = {};
+  try { j = await r.json(); } catch {}
+
   if (!r.ok || !j?.success) {
-    throw new Error(j?.error || "Enhancor queue failed");
+    const msg = (j && (j.error || j.message)) || `Enhancor queue failed (${r.status})`;
+    throw new Error(msg);
   }
+
   return { requestId: String(j.requestId || j.request_id || "") };
 }
 
+/**
+ * Check job status.
+ * Body required by API: { request_id: "..." }
+ * Response example: { requestId, status: "IN_QUEUE"|"IN_PROGRESS"|"COMPLETED"|"FAILED", cost: 480 }
+ */
 export async function enhancorStatus({ requestId }) {
   const key = getApiKey();
   const r = await fetch(`${BASE}/status`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": key,
+      "x-api-key": key
     },
-    body: JSON.stringify({ request_id: String(requestId || "") }),
+    body: JSON.stringify({ request_id: String(requestId || "") })
   });
-  const j = await r.json().catch(() => ({}));
+
+  let j = {};
+  try { j = await r.json(); } catch {}
+
   if (!r.ok) {
-    throw new Error(j?.error || "Enhancor status failed");
+    const msg = (j && (j.error || j.message)) || `Enhancor status failed (${r.status})`;
+    throw new Error(msg);
   }
-  // Example: {"requestId":"...","status":"IN_QUEUE","cost":480}
+
+  // Normalize fields
   return {
     requestId: String(j.requestId || j.request_id || ""),
-    status: String(j.status || "PENDING"),
-    cost: Number(j.cost || 0), // credits
+    status: String(j.status || "PENDING").toUpperCase(), // e.g., PENDING | IN_QUEUE | IN_PROGRESS | COMPLETED | FAILED
+    cost: Number(j.cost || 0)
   };
 }

@@ -6,11 +6,33 @@ export const HTML = [
   "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
   "<title>Sequence Five — Archive</title>",
   "<link rel='icon' href='/images/app-logo.svg'/>",
-  "<style>", BASE_STYLES, "</style></head>",
+  "<style>",
+  BASE_STYLES,
+  `
+  /* Small tweaks for the header actions */
+  .header-actions{display:flex;align-items:center;gap:10px}
+  .btn-upload{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 12px;border-radius:10px;font-weight:600;
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+    border:1px solid var(--line);
+    color:#e9edff; cursor:pointer;
+    box-shadow:var(--shadow-soft);
+  }
+  .btn-upload:hover{
+    background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+    border-color:#343d66;
+  }
+  .btn-upload svg{width:16px;height:16px;display:block}
+  .visually-hidden{
+    position:absolute !important; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0, 0, 1px, 1px); white-space:nowrap; border:0;
+  }
+  `,
+  "</style></head>",
   "<body>",
   "<div class='app'>",
 
-    // --- Sidebar (only link text/targets updated; rest unchanged) ---
     "<aside class='sidebar'>",
       "<div class='nav-brand'>",
         "<div class='logo'><img src='/images/app-logo.svg' alt='Sequence Five logo'/></div>",
@@ -26,12 +48,23 @@ export const HTML = [
       "</nav>",
     "</aside>",
 
-    // --- Main (your existing archive markup kept as-is) ---
     "<main class='main'>",
       "<div class='wrap'>",
         "<div class='headerbar'>",
           "<div class='hgroup'><h1>Archive</h1><div class='sub'>All your generated images.</div></div>",
+          "<div class='header-actions'>",
+            "<button id='btnUpload' class='btn-upload' type='button' aria-label='Upload image'>",
+              "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>",
+                "<path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/>",
+                "<polyline points='17 8 12 3 7 8'/>",
+                "<line x1='12' y1='3' x2='12' y2='15'/>",
+              "</svg>",
+              "<span>Upload image</span>",
+            "</button>",
+            "<input id='inputUpload' class='visually-hidden' type='file' accept='image/*' />",
+          "</div>",
         "</div>",
+
         "<div class='card'>",
           "<div id='grid' class='grid-gal'></div>",
           "<div id='empty' class='hint' style='display:none'>No images yet.</div>",
@@ -43,6 +76,6 @@ export const HTML = [
   "</div>",
 
   "<script src='/assets/nbviewer.js'></script>",
-  "<script src='/assets/archive.js'></script>",   // <-- renamed asset
+  "<script src='/assets/archive.js'></script>",
   "</body></html>"
 ].join("");

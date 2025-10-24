@@ -1,11 +1,14 @@
+// functions/services/storage.js
 import { v4 as uuidv4 } from "uuid";
+import sharp from "sharp";
 import { db, bucket, FieldValueServer } from "../firebase.js";
 
 function extFromMime(m) {
   if (!m) return "png";
-  if (m.includes("png")) return "png";
-  if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
-  if (m.includes("webp")) return "webp";
+  const s = m.toLowerCase();
+  if (s.includes("png")) return "png";
+  if (s.includes("jpeg") || s.includes("jpg")) return "jpg";
+  if (s.includes("webp")) return "webp";
   return "png";
 }
 
@@ -19,6 +22,7 @@ function yyyymmdd(date = new Date()) {
 export async function saveImageAndRecord({ mimeType, base64, prompt, model, state }) {
   if (!base64) return { archiveUrl: null, id: null };
 
+  // MASTER: never re-encode here (this path is used by generator; we keep Gemini original)
   const buffer = Buffer.from(base64, "base64");
   const id = uuidv4();
   const ext = extFromMime(mimeType);
@@ -54,11 +58,9 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, model, stat
 }
 
 /**
- * NEW:
  * Save an upscaled variant for an existing image.
- * - Writes to `${baseNoExt}_upscaled.<ext>`
- * - No compression.
- * - Updates image doc with { upscaledUrl, upscaledPath, state: "upscaled" } (state promotion happens in controller).
+ * - Writes to `${baseNoExt}_upscaled.<ext>` (keeps ext from mime)
+ * - Updates image doc with { upscaledUrl, upscaledPath } (state promotion is done by controller).
  */
 export async function saveUpscaledVariantFor(imageId, mimeType, buffer) {
   if (!imageId) throw new Error("imageId required");
@@ -92,7 +94,6 @@ export async function saveUpscaledVariantFor(imageId, mimeType, buffer) {
     {
       upscaledUrl,
       upscaledPath: upPath,
-      // state will be set to "upscaled" by controller when appropriate
       updatedAt: FieldValueServer.serverTimestamp()
     },
     { merge: true }
@@ -122,7 +123,7 @@ export async function deleteImageCompletely(imageId) {
     const baseNoExt = path.replace(/\.[^.]+$/, "");
     const toDeletePaths = [path, `${baseNoExt}_thumb.jpg`, `${baseNoExt}_tiny.jpg`];
     if (upscaledPath) toDeletePaths.push(upscaledPath);
-    else toDeletePaths.push(`${baseNoExt}_upscaled.jpg`); // best-effort if ext unknown
+    else toDeletePaths.push(`${baseNoExt}_upscaled.jpg`);
 
     await Promise.all(
       toDeletePaths.map(async (p) => {
@@ -187,4 +188,83 @@ export async function deleteImageCompletely(imageId) {
   }
 
   return { ok: true };
+}
+
+/**
+ * Save a user-uploaded image:
+ * - MASTER: saved AS-IS (no server re-encode). Client already resized max 1344 long edge.
+ * - THUMB/TINY: always JPEG, mozjpeg on, generated from the uploaded buffer.
+ */
+export async function saveUserUploadVariants(inputMime, inputBuffer) {
+  const id = uuidv4();
+  const folder = yyyymmdd();
+
+  const ext = extFromMime(inputMime);
+  const basePath = `images/${folder}/${id}.${ext}`;
+  const thumbPath = `images/${folder}/${id}_thumb.jpg`;
+  const tinyPath = `images/${folder}/${id}_tiny.jpg`;
+
+  // MASTER: save the client-resized buffer as-is (no re-encode here)
+  const baseFile = bucket.file(basePath);
+  const tokenBase = uuidv4();
+  await baseFile.save(inputBuffer, {
+    metadata: {
+      contentType: inputMime || "image/png",
+      cacheControl: "public, max-age=31536000, immutable",
+      metadata: { firebaseStorageDownloadTokens: tokenBase }
+    },
+    resumable: false
+  });
+
+  // THUMB/TINY derived with mozjpeg
+  const thumbJpeg = await sharp(inputBuffer, { failOn: "none" })
+    .rotate()
+    .resize({ width: 768, fit: "inside", withoutEnlargement: true, kernel: "lanczos3" })
+    .jpeg({ quality: 80, mozjpeg: true, chromaSubsampling: "4:4:4" })
+    .toBuffer();
+
+  const tinyJpeg = await sharp(inputBuffer, { failOn: "none" })
+    .rotate()
+    .resize({ width: 320, fit: "inside", withoutEnlargement: true, kernel: "lanczos3" })
+    .jpeg({ quality: 72, mozjpeg: true, chromaSubsampling: "4:2:0" })
+    .toBuffer();
+
+  const thumbFile = bucket.file(thumbPath);
+  const tinyFile = bucket.file(tinyPath);
+  const tokenThumb = uuidv4();
+  const tokenTiny = uuidv4();
+
+  await Promise.all([
+    thumbFile.save(thumbJpeg, {
+      metadata: {
+        contentType: "image/jpeg",
+        cacheControl: "public, max-age=31536000, immutable",
+        metadata: { firebaseStorageDownloadTokens: tokenThumb }
+      },
+      resumable: false
+    }),
+    tinyFile.save(tinyJpeg, {
+      metadata: {
+        contentType: "image/jpeg",
+        cacheControl: "public, max-age=31536000, immutable",
+        metadata: { firebaseStorageDownloadTokens: tokenTiny }
+      },
+      resumable: false
+    })
+  ]);
+
+  const enc = (p) => encodeURIComponent(p);
+  const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${enc(basePath)}?alt=media&token=${tokenBase}`;
+  const thumbUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${enc(thumbPath)}?alt=media&token=${tokenThumb}`;
+  const tinyUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${enc(tinyPath)}?alt=media&token=${tokenTiny}`;
+
+  return {
+    id,
+    path: basePath,
+    thumbPath,
+    tinyPath,
+    url,
+    thumbUrl,
+    tinyUrl
+  };
 }
