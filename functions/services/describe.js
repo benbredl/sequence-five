@@ -1,6 +1,6 @@
 // functions/services/describe.js
 // Multimodal (image + text) description generator using Gemini 2.5 Flash (text).
-// Records billing as a "text" kind event.
+// Records billing as a "text" kind event (action: enhance_description).
 
 import {
   recordUsage,
@@ -59,22 +59,22 @@ export async function describeWithImage({ systemPrompt, image, jsonTextPrompt })
   if (!r.ok) throw new Error(j?.error?.message || `Gemini text API error (${r.status})`);
 
   const text = extractTextFromGemini(j);
-  const usage = j?.usageMetadata || {};
+  const usageMeta = j?.usageMetadata || {};
 
-  // Billing as TEXT usage (prompt+output tokens)
+  // Billing as TEXT usage (input+output tokens)
   try {
-    const promptTokens = usage.promptTokenCount || 0;
+    const inputTokens = usageMeta.promptTokenCount || 0;
     const outputTokens =
-      usage.candidatesTokenCount || Math.max(0, (usage.totalTokenCount || 0) - promptTokens);
-    const cost = costGeminiText({ promptTokens, outputTokens });
+      usageMeta.candidatesTokenCount || Math.max(0, (usageMeta.totalTokenCount || 0) - inputTokens);
+    const cost = costGeminiText({ inputTokens, outputTokens });
 
     await recordUsage({
       ts: new Date(),
       service: "gemini",
-      action: "enhance", // classed as text enhancement
+      action: "enhance_description",
       kind: "text",
       model: `${MODEL} (text+image)`,
-      usage,
+      usage: { inputTokens, outputTokens },
       unit_prices: currentUnitPricesSnapshot(),
       cost_usd: cost
     });

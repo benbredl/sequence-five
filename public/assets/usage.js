@@ -3,7 +3,7 @@
    - Fetches /api/billing/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
    - Populates KPIs (EUR) using totals.byKind
    - Draws animated Chart.js charts with tooltips
-   - Renders a day-by-day EUR table (Date / Total / Images / Text) using days[].byKind
+   - Renders a day-by-day EUR table (Date / Total / Images / Text / Upscale)
 */
 
 (function () {
@@ -17,6 +17,7 @@
   const kpiTotal = $("kpiTotal");
   const kpiText = $("kpiText");
   const kpiImage = $("kpiImage");
+  const kpiUpscale = $("kpiUpscale");
   const inputFrom = $("from");
   const inputTo = $("to");
   const btnApply = $("apply");
@@ -65,7 +66,7 @@
 
   btnApply.addEventListener("click", load);
 
-  // Date buttons (simple white arrow) — open the picker programmatically
+  // Date buttons — open the picker programmatically
   function openPickerFor(input) {
     if (input && typeof input.showPicker === "function") {
       input.showPicker();
@@ -113,12 +114,14 @@
   function setKPIs(data) {
     const grandUsd = Number(data?.totals?.grandTotalUsd || 0);
     const byKind = data?.totals?.byKind || {};
-    const imageUsd = Number(byKind.image || 0);
-    const textUsd  = Number(byKind.text  || 0);
+    const imageUsd   = Number(byKind.image   || 0);
+    const textUsd    = Number(byKind.text    || 0);
+    const upscaleUsd = Number(byKind.upscale || 0);
 
-    kpiTotal.textContent = fmtEUR2(grandUsd * FX_EUR);
-    kpiText.textContent  = fmtEUR3(textUsd  * FX_EUR);
-    kpiImage.textContent = fmtEUR2(imageUsd * FX_EUR);
+    kpiTotal.textContent   = fmtEUR2(grandUsd * FX_EUR);
+    kpiText.textContent    = fmtEUR3(textUsd * FX_EUR);
+    kpiImage.textContent   = fmtEUR2(imageUsd * FX_EUR);
+    if (kpiUpscale) kpiUpscale.textContent = fmtEUR2(upscaleUsd * FX_EUR);
   }
 
   /* -------------------- Table (EUR; using byKind per day) -------------------- */
@@ -132,7 +135,7 @@
     const tbl = el("table");
     const thead = el("thead");
     const trh = el("tr");
-    ["Date", "Total", "Images", "Text"].forEach((h) => {
+    ["Date", "Total", "Images", "Text", "Upscale"].forEach((h) => {
       const th = el("th");
       th.textContent = h;
       trh.appendChild(th);
@@ -144,8 +147,9 @@
     days.forEach((d) => {
       const totalUsd = Number(d.total || 0);
       const bk = d.byKind || {};
-      const imageUsd = Number(bk.image || 0);
-      const textUsd  = Number(bk.text  || 0);
+      const imageUsd   = Number(bk.image   || 0);
+      const textUsd    = Number(bk.text    || 0);
+      const upscaleUsd = Number(bk.upscale || 0);
 
       const tr = el("tr");
       const cells = [
@@ -153,6 +157,7 @@
         fmtEUR2(totalUsd * FX_EUR),
         fmtEUR2(imageUsd * FX_EUR),
         fmtEUR3(textUsd  * FX_EUR),
+        fmtEUR2(upscaleUsd * FX_EUR),
       ];
       cells.forEach((v) => {
         const td = el("td");
@@ -314,8 +319,12 @@
       usageChart.destroy();
       usageChart = null;
     }
-    const labels = ["Images", "Text"];
-    const data = [Number(counts.images || 0), Number(counts.prompts || 0)];
+    const labels = ["Images", "Text", "Upscale"];
+    const data = [
+      Number(counts.images  || 0),
+      Number(counts.prompts || 0),
+      Number(counts.upscale || 0),
+    ];
     const ctx = cUsage.getContext("2d");
 
     usageChart = new Chart(ctx, {
@@ -376,7 +385,7 @@
       const seriesUsd = days.map((d) => Number(d.total || 0));
 
       renderDailyChart(labels, seriesUsd);
-      renderUsageChart(data.counts || { images: 0, prompts: 0 });
+      renderUsageChart(data.counts || { images: 0, prompts: 0, upscale: 0 });
       renderTable(days);
     } catch (e) {
       console.error(e);

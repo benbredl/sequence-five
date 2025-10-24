@@ -11,7 +11,7 @@ export const DEFAULT_SYSTEM_PROMPT =
   "- camera: arri alexa, 35mm and shallow DOF for camera description\n" +
   "- Style: cinematic, analog film, ultra realistic, highly detailed\n" +
   "Constraints:\n" +
-  "- Keep under 60 words. Avoid numbered lists.\n" +
+  "- Keep under 60 words. Avoid numbered lists. Start the prompt with 'cienmatic shot of'\n" +
   "Return only the enhanced prompt text.";
 
 // New: System prompt for image→video description generation

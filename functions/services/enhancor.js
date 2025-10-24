@@ -12,9 +12,9 @@ export async function enhancorQueue({ imgUrl, webhookUrl }) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": key
+      "x-api-key": key,
     },
-    body: JSON.stringify({ img_url: String(imgUrl || ""), webhookUrl: String(webhookUrl || "") })
+    body: JSON.stringify({ img_url: String(imgUrl || ""), webhookUrl: String(webhookUrl || "") }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j?.success) {
@@ -29,9 +29,9 @@ export async function enhancorStatus({ requestId }) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": key
+      "x-api-key": key,
     },
-    body: JSON.stringify({ request_id: String(requestId || "") })
+    body: JSON.stringify({ request_id: String(requestId || "") }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
@@ -41,6 +41,6 @@ export async function enhancorStatus({ requestId }) {
   return {
     requestId: String(j.requestId || j.request_id || ""),
     status: String(j.status || "PENDING"),
-    cost: Number(j.cost || 0)
+    cost: Number(j.cost || 0), // credits
   };
 }

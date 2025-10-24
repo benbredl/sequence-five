@@ -4,13 +4,22 @@
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 export const MODEL_ID = "gemini-2.5-flash-image";
 
-import { recordUsage, costGeminiImage, currentUnitPricesSnapshot, BillingConfigError } from "./billing.js";
+import {
+  recordUsage,
+  costGeminiImage,
+  currentUnitPricesSnapshot,
+  BillingConfigError,
+} from "./billing.js";
 
 function partsFromT2I(text) {
-  return [{ text }];
+  return [{ text: String(text || "") }];
 }
+
 function partsFromI2I(mimeType, base64Data, text) {
-  return [{ inlineData: { mimeType, data: base64Data } }, { text }];
+  return [
+    { inlineData: { mimeType: String(mimeType || "image/png"), data: String(base64Data || "") } },
+    { text: String(text || "") },
+  ];
 }
 
 async function callGemini(parts, { action }) {
@@ -18,36 +27,43 @@ async function callGemini(parts, { action }) {
   if (!GOOGLE_KEY) throw new Error("Server missing GOOGLE_API_KEY");
 
   const url = `${BASE_URL}/${MODEL_ID}:generateContent?key=${encodeURIComponent(GOOGLE_KEY)}`;
+
+  // IMPORTANT: Gemini requires a role for each content message.
   const body = {
-    contents: [{ parts }],
+    contents: [{ role: "user", parts }],
     generationConfig: {
       responseModalities: ["Image"],
-      imageConfig: { aspectRatio: "16:9" }
-    }
+      imageConfig: { aspectRatio: "16:9" },
+    },
   };
 
   const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error?.message || `Gemini API error (${r.status})`);
+
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const apiMsg = j?.error?.message || "Gemini API error";
+    throw new Error(`${apiMsg} (${r.status})`);
+  }
 
   const partsOut = j?.candidates?.[0]?.content?.parts || [];
   const img = partsOut.find((p) => p.inlineData || p.inline_data);
   const mimeType = img?.inlineData?.mimeType || img?.inline_data?.mimeType || "image/png";
   const data = (img?.inlineData?.data || img?.inline_data?.data || "").trim();
 
+  if (!data) {
+    throw new Error("Gemini response contained no image data");
+  }
+
+  // Usage + billing
   const usage = j?.usageMetadata || null;
   const promptTokens = usage?.promptTokenCount || 0;
 
-  // Billing: compute cost
   try {
-    const cost_usd = costGeminiImage({
-      images: 1,
-      promptTokens
-    });
+    const cost_usd = costGeminiImage({ images: 1, promptTokens });
     await recordUsage({
       ts: new Date(),
       service: "gemini",
@@ -57,10 +73,14 @@ async function callGemini(parts, { action }) {
       request_id: null,
       usage,
       unit_prices: currentUnitPricesSnapshot(),
-      cost_usd
+      cost_usd,
     });
   } catch (e) {
-    if (!(e instanceof BillingConfigError)) throw e;
+    // If pricing is misconfigured, let the request succeed and just skip logging
+    if (!(e instanceof BillingConfigError)) {
+      // Unknown error while recording usage should not mask image generation
+      console.error("[gemini.callGemini] billing write skipped:", e);
+    }
   }
 
   return { mimeType, base64: data };

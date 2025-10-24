@@ -14,7 +14,7 @@ export async function getSummary(req, res) {
       .orderBy("ts", "asc")
       .get();
 
-    // yyyy-mm-dd -> day aggregation
+    // yyyy-mm-dd -> aggregation
     const days = new Map();
 
     // Global rollups
@@ -23,20 +23,23 @@ export async function getSummary(req, res) {
     const services = new Map();   // service -> USD
     const kinds    = new Map();   // kind   -> USD
 
-    // Activity counters
-    const countsTotals = { enhance: 0, t2i: 0, i2i: 0 };
+    // Activity counters for dashboard
+    const countsTotals = { enhance: 0, t2i: 0, i2i: 0, upscale: 0 };
 
     for (const doc of snap.docs) {
       const v = doc.data() || {};
       const d = (v.ts?.toDate ? v.ts.toDate() : v.ts) || new Date();
       const key = d.toISOString().slice(0, 10);
+
       const cost = Number(v.cost_usd || 0);
-      const service = String(v.service || "").toLowerCase() || null;
+      const service = String(v.service || "").toLowerCase() || null;   // "gemini" | "enhancor"
       const model   = v.model || null;
       const kindRaw = String(v.kind || "").toLowerCase();
+
       const kind =
-        kindRaw.includes("image") ? "image" :
-        kindRaw.includes("text")  ? "text"  :
+        kindRaw.includes("image")   ? "image"   :
+        kindRaw.includes("text")    ? "text"    :
+        kindRaw.includes("upscale") ? "upscale" :
         (kindRaw || "other");
 
       grand += cost;
@@ -44,10 +47,10 @@ export async function getSummary(req, res) {
       const entry = days.get(key) || {
         date: key,
         total: 0,
-        services: { openai: 0, gemini: 0 },
+        services: { gemini: 0, enhancor: 0 },
         models: {},
-        counts: { enhance: 0, t2i: 0, i2i: 0 },
-        byKind: { image: 0, text: 0, other: 0 }
+        counts: { enhance: 0, t2i: 0, i2i: 0, upscale: 0 },
+        byKind: { image: 0, text: 0, upscale: 0, other: 0 }
       };
 
       entry.total += cost;
@@ -57,11 +60,17 @@ export async function getSummary(req, res) {
       // Per-day kind rollup
       entry.byKind[kind] = (entry.byKind[kind] || 0) + cost;
 
-      // Activity counters (unchanged semantics)
+      // Activity counters (normalize action names)
       const a = String(v.action || "").toLowerCase();
-      if (a === "enhance") { entry.counts.enhance++; countsTotals.enhance++; }
-      else if (a === "t2i") { entry.counts.t2i++; countsTotals.t2i++; }
-      else if (a === "i2i") { entry.counts.i2i++; countsTotals.i2i++; }
+      if (a === "enhance" || a === "enhance_prompt" || a === "enhance_description") {
+        entry.counts.enhance++; countsTotals.enhance++;
+      } else if (a === "t2i") {
+        entry.counts.t2i++; countsTotals.t2i++;
+      } else if (a === "i2i") {
+        entry.counts.i2i++; countsTotals.i2i++;
+      } else if (a === "upscale") {
+        entry.counts.upscale++; countsTotals.upscale++;
+      }
 
       days.set(key, entry);
 
@@ -79,10 +88,12 @@ export async function getSummary(req, res) {
       range: { from: fromDate.toISOString().slice(0,10), to: toDate.toISOString().slice(0,10) }
     };
 
+    // Back-compat for your usage dashboard
     const counts = {
       enhance: countsTotals.enhance,
       t2i: countsTotals.t2i,
       i2i: countsTotals.i2i,
+      upscale: countsTotals.upscale,
       images: countsTotals.t2i + countsTotals.i2i,
       prompts: countsTotals.enhance
     };

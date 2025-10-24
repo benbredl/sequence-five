@@ -15,8 +15,12 @@
   const showAllLink = $("showAll");
   const MAX_PARALLEL = Number((limitEl && limitEl.textContent) || "5") || 5;
 
+  // --- Client-side resize + JPEG compress (long edge = 1344) ---
+  const MAX_LONG_EDGE = 1344;  // matches Gemini's default output long edge
+  const JPEG_QUALITY = 0.9;   // good visual quality / size balance
+
   let inProgress = 0;
-  let currentUpload = null;
+  let currentUpload = null; // { dataUrl, name, sizeOrig, sizeOut, type, width, height }
 
   (function injectLocalStyles() {
     const styleId = "ig-light-styles";
@@ -82,44 +86,124 @@
     });
   }
 
+  // ---- Helpers for downscale + JPEG compress ----
+  function imgFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = (e) => reject(e);
+      im.src = dataUrl;
+    });
+  }
+
+  function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ""));
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  async function downscaleAndCompress(dataUrl) {
+    const im = await imgFromDataUrl(dataUrl);
+    const w0 = im.naturalWidth || im.width || 0;
+    const h0 = im.naturalHeight || im.height || 0;
+    const long0 = Math.max(w0, h0);
+    const scale = long0 > MAX_LONG_EDGE ? (MAX_LONG_EDGE / long0) : 1;
+    const w = Math.max(1, Math.round(w0 * scale));
+    const h = Math.max(1, Math.round(h0 * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    // Fill white so transparent PNGs don't create dark backgrounds in JPEG
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(im, 0, 0, w, h);
+
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY)
+    );
+    if (!blob) throw new Error("Compression failed");
+    const outUrl = await blobToDataURL(blob);
+    return { dataUrl: outUrl, w, h, bytes: blob.size };
+  }
+
+  // ---- Handle file upload (with resize+compress) ----
   async function handleFile(file) {
     if (!file || !/^image\//.test(file.type)) { alert("Please choose an image file."); return; }
-    const dataUrl = await readFileAsDataUrl(file);
-    const dim = await new Promise((resolve) => {
+
+    // Read original file -> data URL
+    const origDataUrl = await readFileAsDataUrl(file);
+
+    // Compute original dimensions (for display only)
+    const origDim = await new Promise((resolve) => {
       const img = new Image();
       img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
       img.onerror = () => resolve({ w: 0, h: 0 });
-      img.src = dataUrl;
+      img.src = origDataUrl;
     });
-    currentUpload = { dataUrl, name: file.name, size: file.size, type: file.type, width: dim.w, height: dim.h };
 
+    // Downscale + JPEG compress to speed up transfers
+    let optimized;
+    try {
+      optimized = await downscaleAndCompress(origDataUrl);
+    } catch (e) {
+      console.warn("[upload optimize] failed, using original", e);
+      const b = await (await fetch(origDataUrl)).blob();
+      optimized = { dataUrl: origDataUrl, w: origDim.w, h: origDim.h, bytes: b.size || file.size };
+    }
+
+    currentUpload = {
+      dataUrl: optimized.dataUrl,
+      name: file.name,
+      sizeOrig: file.size,
+      sizeOut: optimized.bytes,
+      type: "image/jpeg",
+      width: optimized.w,
+      height: optimized.h
+    };
+
+    // Update dropzone UI
     drop.classList.add("has-upload");
     drop.classList.remove("is-drag");
     drop.classList.remove("is-hover");
-    dropInner.innerHTML = "";
+    if (dropInner) dropInner.innerHTML = "";
+
+    // Replace preview with optimized JPEG (fast display + consistent with payload)
+    const prev = drop.querySelector("img.preview");
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
 
     const preview = document.createElement("img");
     preview.className = "preview";
     preview.alt = "Uploaded base image";
-    preview.src = dataUrl;
+    preview.src = optimized.dataUrl;
     drop.appendChild(preview);
 
-    uploadMeta.style.fontSize = "11px";
-    uploadMeta.style.opacity = "0.85";
-    uploadMeta.textContent = `${file.name} — ${bytes(file.size)} — ${dim.w}×${dim.h}`;
-    removeUpload.style.display = "inline-flex";
+    // Display original -> optimized sizes and dims
+    if (uploadMeta) {
+      uploadMeta.style.fontSize = "11px";
+      uploadMeta.style.opacity = "0.85";
+      uploadMeta.textContent = `${file.name} — ${bytes(file.size)} → ${bytes(optimized.bytes)} — `
+        + `${optimized.w}×${optimized.h} (long edge ≤ ${MAX_LONG_EDGE}px)`;
+    }
+    if (removeUpload) removeUpload.style.display = "inline-flex";
   }
 
   function clearUpload() {
     currentUpload = null;
-    uploadMeta.textContent = "";
-    removeUpload.style.display = "none";
+    if (uploadMeta) uploadMeta.textContent = "";
+    if (removeUpload) removeUpload.style.display = "none";
     drop.classList.remove("has-upload");
     drop.classList.remove("is-hover");
     drop.classList.remove("is-drag");
     const prev = drop.querySelector("img.preview");
     if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
-    dropInner.innerHTML = "<div>Upload base image (optional)</div>";
+    if (dropInner) dropInner.innerHTML = "<div>Upload base image (optional)</div>";
   }
 
   if (drop) {
@@ -134,8 +218,8 @@
       const file = (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) || null;
       if (file) handleFile(file);
     });
-    drop.addEventListener("click", () => fileInput.click());
-    drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
+    drop.addEventListener("click", () => fileInput && fileInput.click());
+    drop.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && fileInput) fileInput.click(); });
   }
   fileInput && fileInput.addEventListener("change", () => {
     const f = fileInput.files && fileInput.files[0];
