@@ -111,6 +111,24 @@ body::before{
 }
 .nav .sep{height:1px;background:var(--line-soft);margin:12px 6px}
 
+/* User pill (login indicator) */
+.user-pill{
+  display:none; /* shown when auth resolves */
+  align-items:center; gap:10px;
+  margin:6px 6px 2px;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid var(--line-soft);
+  background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+  box-shadow:var(--shadow-soft);
+}
+.user-pill img{
+  width:28px;height:28px;border-radius:999px;object-fit:cover;border:1px solid rgba(255,255,255,.18)
+}
+.user-pill .user-meta{display:flex;flex-direction:column;line-height:1.1}
+.user-pill .name{font-size:12.5px;font-weight:700;color:#eef2ff}
+.user-pill .email{font-size:11px;color:#aeb6d6;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* Main + wrap */
 .main{
   min-height:100vh;
