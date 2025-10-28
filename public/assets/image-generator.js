@@ -133,6 +133,36 @@
     return { dataUrl: outUrl, w, h, bytes: blob.size };
   }
 
+  // ---- Auth helpers (used for both preload + generate) ----
+  async function waitForAuthUser(timeoutMs = 8000) {
+    if (window.firebase && firebase.auth && firebase.auth().currentUser) {
+      return firebase.auth().currentUser;
+    }
+    return new Promise((resolve, reject) => {
+      if (!window.firebase || !firebase.auth) {
+        return reject(new Error("Firebase auth not available"));
+      }
+      const t = setTimeout(() => reject(new Error("Auth timeout")), timeoutMs);
+      const unsub = firebase.auth().onAuthStateChanged((user) => {
+        clearTimeout(t);
+        unsub();
+        resolve(user || null);
+      });
+    });
+  }
+
+  async function getAuthContext() {
+    try {
+      const user = await waitForAuthUser();
+      if (!user) throw new Error("Not signed in");
+      const idToken = await user.getIdToken(/* forceRefresh */ false).catch(() => null);
+      return { uid: user.uid, idToken };
+    } catch (e) {
+      console.warn("[image-generator] auth context failed:", e);
+      return { uid: null, idToken: null };
+    }
+  }
+
   // ---- Handle file upload (with resize+compress) ----
   async function handleFile(file) {
     if (!file || !/^image\//.test(file.type)) { alert("Please choose an image file."); return; }
@@ -326,11 +356,23 @@
     return card;
   }
 
-  async function preloadLastFive() {
+  // --- ONLY preload the user's own last images (requires auth) ---
+  async function preloadLastFiveMine() {
     try {
-      const r = await fetch("/api/archive?limit=6");
+      const { idToken, uid } = await getAuthContext();
+      if (!uid || !idToken) {
+        // If not signed in, show nothing in the "recent" strip (empty state handles it)
+        console.warn("[preloadLastFiveMine] no auth – skipping");
+        return;
+      }
+
+      const params = new URLSearchParams({ limit: "6", my: "1" });
+      const r = await fetch(`/api/archive?${params.toString()}`, {
+        headers: { "Authorization": `Bearer ${idToken}` }
+      });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed");
+
       const items = Array.isArray(j.items) ? j.items : [];
       if (!items.length) return;
 
@@ -341,7 +383,6 @@
           tinyUrl: it.tinyUrl || null,
           thumbUrl: it.thumbUrl || null,
           url: it.url || null,
-          // pick up upscaledUrl if the API includes it now
           upscaledUrl: it.upscaledUrl || null,
           createdAt: it.createdAt || null,
           state: it.state || "base-image",
@@ -351,7 +392,7 @@
       resultsGrid.appendChild(frag);
       showEmptyIfNeeded();
     } catch (e) {
-      console.error("[preloadLastFive]", e);
+      console.error("[preloadLastFiveMine]", e);
     }
   }
 
@@ -421,6 +462,8 @@
     if (!text) { alert("Please write a prompt."); return; }
     if (inProgress >= MAX_PARALLEL) { alert(`Please wait — max ${MAX_PARALLEL} generations in progress.`); return; }
 
+    const { idToken } = await getAuthContext().catch(() => ({ idToken: null }));
+
     const { card, box } = skeletonTile();
     resultsGrid.prepend(card);
     showEmptyIfNeeded();
@@ -432,7 +475,10 @@
 
       const j = await jfetch("/api/generate-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { "Authorization": `Bearer ${idToken}` } : {})
+        },
         body: JSON.stringify(body)
       });
 
@@ -495,7 +541,9 @@
   });
 
   showEmptyIfNeeded();
-  preloadLastFive();
+
+  // Only show the signed-in user's recent images
+  preloadLastFiveMine();
 
   if (showAllLink) {
     showAllLink.addEventListener("mouseenter", () => { showAllLink.style.opacity = "1"; });

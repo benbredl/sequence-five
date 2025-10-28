@@ -19,7 +19,10 @@ function yyyymmdd(date = new Date()) {
   return `${y}/${m}/${d}`;
 }
 
-export async function saveImageAndRecord({ mimeType, base64, prompt, model, state }) {
+/**
+ * NOTE: now accepts optional userId and stores it at creation time to avoid a follow-up merge.
+ */
+export async function saveImageAndRecord({ mimeType, base64, prompt, model, state, userId = null }) {
   if (!base64) return { archiveUrl: null, id: null };
 
   // MASTER: never re-encode here (this path is used by generator; we keep Gemini original)
@@ -51,6 +54,7 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, model, stat
     model: model || "gemini-2.5-flash-image",
     state: state || "base-image",
     mimeType,
+    userId: userId || null, // <-- write owner immediately
     createdAt: FieldValueServer.serverTimestamp()
   });
 

@@ -11,6 +11,10 @@ const sentinel = $("sentinel");
 const btnUpload = $("btnUpload");
 const inputUpload = $("inputUpload");
 
+// Filter segmented control
+const segAll = $("segAll");
+const segMine = $("segMine");
+
 if (!grid || !sentinel) {
   console.warn("[archive] grid/sentinel not found");
 }
@@ -109,10 +113,66 @@ function cardForItem(item, onDeleted) {
   return card;
 }
 
+// ---------- Auth helpers ----------
+async function waitForAuthUser(timeoutMs = 8000) {
+  if (window.firebase && firebase.auth && firebase.auth().currentUser) {
+    return firebase.auth().currentUser;
+  }
+  return new Promise((resolve, reject) => {
+    if (!window.firebase || !firebase.auth) {
+      return reject(new Error("Firebase auth not available"));
+    }
+    const t = setTimeout(() => reject(new Error("Auth timeout")), timeoutMs);
+    const unsub = firebase.auth().onAuthStateChanged((user) => {
+      clearTimeout(t);
+      unsub();
+      resolve(user || null);
+    });
+  });
+}
+
+async function getAuthContext() {
+  try {
+    const user = await waitForAuthUser();
+    if (!user) throw new Error("Not signed in");
+    const idToken = await user.getIdToken(/* forceRefresh */ false).catch(() => null);
+    return { uid: user.uid, idToken };
+  } catch (e) {
+    console.warn("[archive] auth context failed:", e);
+    return { uid: null, idToken: null };
+  }
+}
+
+// ---------- Paging & filter state ----------
+const MODE_KEY = "sf:archive:mode"; // "all" | "mine"
+function readMode() {
+  const v = localStorage.getItem(MODE_KEY);
+  return v === "mine" ? "mine" : "all";
+}
+function writeMode(m) {
+  try { localStorage.setItem(MODE_KEY, m); } catch (_) {}
+}
+function updateSegUI(mode) {
+  if (segAll) segAll.setAttribute("aria-pressed", mode === "all" ? "true" : "false");
+  if (segMine) segMine.setAttribute("aria-pressed", mode === "mine" ? "true" : "false");
+}
+
+let mode = readMode(); // "all" | "mine"
 let cursor = null;
 let isLoading = false;
 let isEnd = false;
 const seen = new Set();
+let authed = false;
+
+function resetList() {
+  cursor = null;
+  isLoading = false;
+  isEnd = false;
+  seen.clear();
+  if (grid) grid.innerHTML = "";
+  if (sentinel) sentinel.style.display = "block";
+  setEmptyVisibility();
+}
 
 async function fetchPage() {
   if (!grid || !sentinel) return;
@@ -123,8 +183,17 @@ async function fetchPage() {
     const params = new URLSearchParams();
     params.set("limit", "24");
     if (cursor) params.set("cursor", cursor);
+    if (mode === "mine") params.set("my", "1");
 
-    const r = await fetch(`/api/archive?${params.toString()}`);
+    // Attach ID token only when we ask for "my" items so server can resolve uid
+    let headers = { };
+    let ctx = { idToken: null };
+    if (mode === "mine") {
+      ctx = await getAuthContext().catch(() => ({ idToken: null }));
+      if (ctx.idToken) headers["Authorization"] = `Bearer ${ctx.idToken}`;
+    }
+
+    const r = await fetch(`/api/archive?${params.toString()}`, { headers });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "Failed to load");
 
@@ -296,9 +365,14 @@ async function downscaleOnlyNoExtraCompression(dataUrl, originalMime) {
 }
 
 async function jpost(url, body) {
+  // Attach ID token for uploading (server uses it to capture uid)
+  const { idToken } = await getAuthContext();
   const r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { "Authorization": `Bearer ${idToken}` } : {})
+    },
     body: JSON.stringify(body)
   });
   const j = await r.json().catch(() => ({}));
@@ -316,7 +390,6 @@ async function handleUploadFile(file) {
   try {
     const original = await readAsDataURL(file);
     const resized = await downscaleOnlyNoExtraCompression(original, file.type);
-
     const resp = await jpost("/api/archive/upload", {
       name: file.name,
       image: { dataUrl: resized.dataUrl } // master saved as-is on server
@@ -338,6 +411,7 @@ async function handleUploadFile(file) {
   }
 }
 
+// Upload UI
 btnUpload && btnUpload.addEventListener("click", () => inputUpload && inputUpload.click());
 inputUpload && inputUpload.addEventListener("change", () => {
   const f = inputUpload.files && inputUpload.files[0];
@@ -345,8 +419,72 @@ inputUpload && inputUpload.addEventListener("change", () => {
   inputUpload.value = "";
 });
 
-// ------------------- Boot -------------------
+// ------------------- Filter UI wiring -------------------
+function setButtonDisabled(btn, disabled, titleIfDisabled = "") {
+  if (!btn) return;
+  btn.disabled = !!disabled;
+  btn.setAttribute("aria-disabled", disabled ? "true" : "false");
+  btn.title = disabled ? titleIfDisabled : "";
+}
 
+function setMode(nextMode) {
+  if (nextMode !== "all" && nextMode !== "mine") return;
+  // Prevent switching to "mine" if not authenticated
+  if (nextMode === "mine" && !authed) return;
+
+  if (mode === nextMode) return;
+  mode = nextMode;
+  writeMode(mode);
+  updateSegUI(mode);
+  resetList();
+  setupObserver();
+  fetchPage().then(ensureFilledOnceOrTwice).catch(()=>{});
+}
+
+if (segAll) segAll.addEventListener("click", () => setMode("all"));
+if (segMine) segMine.addEventListener("click", () => setMode("mine"));
+
+// Initialize seg state on load
+updateSegUI(mode);
+
+// Watch auth to enable/disable "My images" AND refresh list if we booted in "mine"
+(function wireAuthForFilter(){
+  try {
+    if (!window.firebase || !firebase.auth) {
+      setButtonDisabled(segMine, true, "Sign in to view only your images");
+      return;
+    }
+    firebase.auth().onAuthStateChanged(async (user) => {
+      authed = !!user;
+      setButtonDisabled(segMine, !authed, authed ? "" : "Sign in to view only your images");
+
+      // If user signed in and we are in "mine", refresh now so items appear
+      if (authed && mode === "mine") {
+        resetList();
+        setupObserver();
+        await fetchPage();
+        await ensureFilledOnceOrTwice();
+        setEmptyVisibility();
+      }
+
+      // If user signed out and mode was "mine", revert to "all"
+      if (!authed && mode === "mine") {
+        mode = "all";
+        writeMode(mode);
+        updateSegUI(mode);
+        resetList();
+        setupObserver();
+        await fetchPage();
+        await ensureFilledOnceOrTwice();
+        setEmptyVisibility();
+      }
+    });
+  } catch {
+    setButtonDisabled(segMine, true, "Sign in to view only your images");
+  }
+})();
+
+// ------------------- Boot -------------------
 (async () => {
   setupObserver();
   await fetchPage();

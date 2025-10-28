@@ -218,7 +218,7 @@ export const HTML = [
     .sb-card.reordered{ animation: none; }
   }
 
-  /* Account badge */
+  /* --- Account badge (logged-in indicator) --- */
   .account{margin:10px 6px 0;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--line-soft);background:linear-gradient(180deg, var(--glass1), var(--glass2));box-shadow:var(--shadow-soft)}
   .acct-photo{width:34px;height:34px;border-radius:10px;overflow:hidden;border:1px solid var(--line-soft);background:rgba(255,255,255,.06);flex:0 0 34px}
   .acct-photo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -226,10 +226,16 @@ export const HTML = [
   .acct-meta{min-width:0}
   .acct-name{font-weight:600;font-size:13px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .acct-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  `,
-  "</style></head>",
-  "<body>",
-  "<div class='app'>",
+
+  /* Skeleton state */
+  .skel{position:relative;overflow:hidden;background:rgba(255,255,255,.06)}
+  .skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);animation:skel 1.2s linear infinite}
+  @keyframes skel{100%{transform:translateX(100%)}}
+  .acct-name.skel{height:12px;border-radius:6px}
+  .acct-sub.skel{height:10px;border-radius:6px;width:65%;margin-top:6px}
+    `, "</style></head>",
+    "<body>",
+    "<div class='app'>",
 
     "<aside class='sidebar'>",
       "<div class='nav-brand'>",
@@ -256,15 +262,15 @@ export const HTML = [
         "<span class='sep'></span>",
                 // Account badge
                 "<div class='account' id='accountCard' aria-live='polite'>",
-                  "<div class='acct-photo'>",
-                    "<img id='acctAvatar' alt='' style='display:none'/>",
-                    "<div id='acctFallback' class='acct-fallback' aria-hidden='true' style='display:none'>?</div>",
-                  "</div>",
-                  "<div class='acct-meta'>",
-                    "<div id='acctName' class='acct-name'>Signed in</div>",
-                    "<div id='acctSub' class='acct-sub'>Loading…</div>",
-                  "</div>",
-                "</div>",
+          "<div class='acct-photo'>",
+            "<img id='acctAvatar' alt='' style='display:none'/>",
+            "<div id='acctFallback' class='acct-fallback' aria-hidden='true' style='display:none'>?</div>",
+          "</div>",
+          "<div class='acct-meta'>",
+            "<div id='acctName' class='acct-name'>Signed in</div>",
+            "<div id='acctSub' class='acct-sub'>Loading…</div>",
+          "</div>",
+        "</div>",
         "<a href='#'>",
           "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/></svg>",
           "<span>Logout</span>",
@@ -293,87 +299,85 @@ export const HTML = [
   "<script>",
   `
   (function(){
-    const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    var KEY='sf:acct', TTL=6*60*60*1000; // 6 hours
 
-    function setBadge(name, sub, photo){
-      var nameEl = document.getElementById('acctName');
-      var subEl  = document.getElementById('acctSub');
-      var imgEl  = document.getElementById('acctAvatar');
-      var fbEl   = document.getElementById('acctFallback');
-      nameEl.textContent = name || 'Signed in';
-      subEl.textContent  = sub || 'Online';
-      if (photo) {
-        imgEl.src = photo;
-        imgEl.alt = (name || 'User') + ' profile photo';
-        imgEl.style.display = '';
-        fbEl.style.display = 'none';
-      } else {
-        var initials = (name || sub || 'U').trim().split(/\\s+/).slice(0,2).map(s=>s[0]?.toUpperCase()||'').join('');
-        fbEl.textContent = initials || 'U';
-        fbEl.style.display = '';
-        imgEl.style.display = 'none';
+    function readCache(){
+      try{
+        var raw=localStorage.getItem(KEY); if(!raw) return null;
+        var obj=JSON.parse(raw); if(!obj||!obj.ts) return null;
+        if(Date.now()-obj.ts>TTL) return null;
+        return obj;
+      }catch(_){ return null }
+    }
+    function writeCache(data){
+      try{ localStorage.setItem(KEY, JSON.stringify({ ...data, ts: Date.now() })); }catch(_){}
+    }
+    function clearCache(){ try{ localStorage.removeItem(KEY); }catch(_){ } }
+    function unskeleton(){
+      var n=document.getElementById('acctName'); var s=document.getElementById('acctSub');
+      n && n.classList.remove('skel');
+      s && s.classList.remove('skel');
+    }
+    function populate(data){
+      var nameEl=document.getElementById('acctName');
+      var subEl=document.getElementById('acctSub');
+      var imgEl=document.getElementById('acctAvatar');
+      var fbEl=document.getElementById('acctFallback');
+      var name=data.name||''; var sub=data.sub||''; var photo=data.photo||'';
+      unskeleton();
+      nameEl.textContent=name; subEl.textContent=sub;
+      if(photo){
+        imgEl.src=photo; imgEl.alt=(name||'User')+' profile photo'; imgEl.style.display=''; fbEl.style.display='none';
+      }else{
+        var initials=(name||sub||'U').trim().split(/\\s+/).slice(0,2).map(s=>s[0]?.toUpperCase()||'').join('');
+        fbEl.textContent=initials||'U'; fbEl.style.display=''; imgEl.style.display='none';
       }
     }
 
-    async function getProfileFromFirestore(user){
-      try{
-        var db = firebase.firestore();
-        var snap = await db.collection('users').doc(user.uid).get();
-        if (snap.exists){
-          var d = snap.data() || {};
-          return {
-            name:  d.name || d.displayName || user.displayName || 'Signed in',
-            sub:   d.username || d.handle || user.email || 'Online',
-            photo: d.photoURL || d.avatar || user.photoURL || '',
-            updatedAt: d.updatedAt || null
-          };
-        }
-      }catch(e){}
-      return {
-        name:  user.displayName || 'Signed in',
-        sub:   user.email || 'Online',
-        photo: user.photoURL || ''
-      };
-    }
-
-    function readCache(uid){
-      try{
-        var raw = localStorage.getItem('acct:'+uid);
-        if (!raw) return null;
-        var obj = JSON.parse(raw);
-        if (!obj || !obj.t) return null;
-        var now = Date.now();
-        if (now - obj.t > CACHE_TTL_MS) return null;
-        return obj;
-      }catch(_){ return null; }
-    }
-
-    function writeCache(uid, data){
-      try{
-        localStorage.setItem('acct:'+uid, JSON.stringify({ ...data, t: Date.now() }));
-      }catch(_){}
-    }
+    // Pre-populate immediately from cache to avoid any loading flicker
+    var bootCached = readCache();
+    if (bootCached) { populate(bootCached); }
 
     if (!firebase.apps.length) firebase.initializeApp(window.FB_CONFIG);
     firebase.auth().onAuthStateChanged(async function(user){
-      if (!user) { window.location.replace('/login'); return; }
+      if (!user) { clearCache(); window.location.replace('/login'); return; }
 
-      var cached = readCache(user.uid);
-      if (cached) setBadge(cached.name, cached.sub, cached.photo);
+      // If cache exists for this user, we are done. Do NOT fetch Firestore.
+      var cached = readCache();
+      if (cached && cached.uid === user.uid) { return; }
 
-      if (!cached){
-        var prof = await getProfileFromFirestore(user);
-        setBadge(prof.name, prof.sub, prof.photo);
-        writeCache(user.uid, prof);
-      }
+      // Otherwise, populate from Auth quickly, then fetch Firestore once and cache.
+      populate({
+        name: user.displayName || '',
+        sub: user.email || '',
+        photo: user.photoURL || '',
+        uid: user.uid
+      });
+
+      try{
+        var db=firebase.firestore();
+        var snap=await db.collection('users').doc(user.uid).get();
+        if(snap.exists){
+          var d=snap.data()||{};
+          var name=d.name||d.displayName||user.displayName||'';
+          var sub=d.username||d.handle||user.email||'';
+          var photo=d.photoURL||d.avatar||user.photoURL||'';
+          var obj={name, sub, photo, uid:user.uid};
+          writeCache(obj);
+          populate(obj);
+        }else{
+          writeCache({name:user.displayName||'', sub:user.email||'', photo:user.photoURL||'', uid:user.uid});
+        }
+      }catch(_){}
     });
 
+    // Wire Logout link (and clear cache)
     document.addEventListener('DOMContentLoaded', function(){
       var logoutLink = Array.from(document.querySelectorAll('.nav a')).find(a => /logout/i.test(a.textContent || ''));
       if (logoutLink) {
         logoutLink.addEventListener('click', function(e){
           e.preventDefault();
-          firebase.auth().signOut().then(()=>window.location.replace('/login'));
+          firebase.auth().signOut().then(()=>{ try{localStorage.removeItem(KEY);}catch(_){ } window.location.replace('/login'); });
         });
       }
     });
