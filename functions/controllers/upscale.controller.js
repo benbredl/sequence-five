@@ -1,3 +1,4 @@
+// functions/controllers/upscale.controller.js
 import { db } from "../firebase.js";
 import { ok, bad, err } from "../utils/http.js";
 import { enhancorQueue, enhancorStatus } from "../services/enhancor.js";
@@ -56,6 +57,9 @@ export async function postUpscaleStart(req, res) {
  * Poll Enhancor status.
  * Body: { imageId }
  * Returns: { status, requestId, upscaledUrl? }
+ *
+ * NOTE: We purposely DO NOT write any cost into the image doc.
+ * Costs are tracked exclusively in billing_events (via the webhook).
  */
 export async function postUpscaleStatus(req, res) {
   try {
@@ -80,11 +84,10 @@ export async function postUpscaleStatus(req, res) {
 
     const st = await enhancorStatus({ requestId: reqId });
 
+    // Update only the status (no cost field persisted to image doc)
     await ref.set(
       {
         upscalerStatus: st.status,
-        // st.cost is credits (if provided by Enhancor)
-        upscalerCost: typeof st.cost === "number" ? st.cost : undefined,
         updatedAt: new Date(),
       },
       { merge: true }

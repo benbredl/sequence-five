@@ -429,9 +429,10 @@
       const sb = j || {};
 
       pageTitle.textContent = sb.title || "Storyboard";
+      // Show ONLY the description here (no duplicate title). Description is 12px via .sb-head-desc.
       headCard.innerHTML = `
         <div class="row" style="align-items:center;justify-content:space-between">
-          <div><strong>${sb.title || ""}</strong><div class="hint" style="margin-top:6px">${sb.description || ""}</div></div>
+          <div><div class="sb-head-desc" style="margin-top:6px">${sb.description || ""}</div></div>
         </div>
       `;
 

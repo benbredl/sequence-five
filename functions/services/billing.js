@@ -1,4 +1,5 @@
 // Centralized pricing + usage recording for Gemini (text + image) and Enhancor (upscale).
+// Now also supports Midjourney per-job pricing (4-pack).
 
 import { db } from "../firebase.js";
 
@@ -27,8 +28,9 @@ function readRequiredEnvNumber(name) {
  * Env keys expected:
  *  - PRICE_GEMINI_TEXT_INPUT_USD_PER_1M
  *  - PRICE_GEMINI_TEXT_OUTPUT_USD_PER_1M
- *  - PRICE_GEMINI_IMAGE_PER_IMAGE_USD
- *  - PRICE_ENHANCOR_PER_1K_USD
+ *  - PRICE_GEMINI_IMAGE_USD_PER_IMAGE
+ *  - PRICE_ENHANCOR_USD_PER_1K
+ *  - PRICE_MIDJOURNEY_IMAGE_USD_PER_JOB        <-- NEW
  */
 export function pricingCatalog() {
   return {
@@ -36,7 +38,12 @@ export function pricingCatalog() {
     gemini_text_in_per_1m: readRequiredEnvNumber("PRICE_GEMINI_TEXT_INPUT_USD_PER_1M"),
     gemini_text_out_per_1m: readRequiredEnvNumber("PRICE_GEMINI_TEXT_OUTPUT_USD_PER_1M"),
     gemini_image_per_image: readRequiredEnvNumber("PRICE_GEMINI_IMAGE_USD_PER_IMAGE"),
+
+    // Enhancor (USD)
     enhancor_per_1k: readRequiredEnvNumber("PRICE_ENHANCOR_USD_PER_1K"),
+
+    // Midjourney (USD) — per job (4-pack)
+    midjourney_per_job: readRequiredEnvNumber("PRICE_MIDJOURNEY_IMAGE_USD_PER_JOB"),
 
     note: process.env.PRICE_NOTE || "",
     effective_at: new Date().toISOString(),
@@ -71,12 +78,18 @@ export function costEnhancorUpscale({ credits = 0 }) {
   return roundMoney(usd);
 }
 
+/** Midjourney (per job / 4-pack). */
+export function costMidjourneyJob({ jobs = 1 }) {
+  const p = pricingCatalog();
+  return roundMoney(Number(jobs || 1) * p.midjourney_per_job);
+}
+
 /**
  * Persist a single usage event in Firestore.
  * Shape:
  * {
  *   ts: Date,
- *   service: "gemini" | "enhancor",
+ *   service: "gemini" | "enhancor" | "midjourney",
  *   action: "t2i" | "i2i" | "enhance" | "upscale" | ...,
  *   kind: "image" | "text" | "upscale",
  *   model: string,

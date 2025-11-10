@@ -2,7 +2,12 @@
 import { generateFromText, generateFromImage } from "../services/gemini.js";
 import { saveImageAndRecord, deleteImageCompletely } from "../services/storage.js";
 import { bad, err, ok } from "../utils/http.js";
-import { pricingCatalog, BillingConfigError } from "../services/billing.js";
+import {
+  pricingCatalog,
+  BillingConfigError,
+  recordUsage,
+  costMidjourneyJob
+} from "../services/billing.js";
 import { db, FieldValueServer } from "../firebase.js";
 
 /** Robust base64url-safe JWT payload decode (no signature verify). */
@@ -83,11 +88,9 @@ async function upsertMjTask(taskId, data) {
  * Idempotent persist of one Midjourney image:
  * - Check if an image for (taskId, originalUrl) already exists → reuse
  * - Otherwise download & save, tagging uid + taskId + originalUrl
- *
- * NOTE: Per request, we DO NOT store any `originalUrlNorm` or `sha256`.
  */
 async function persistMjImage({ url, prompt, uid, taskId }) {
-  // 1) Guard against duplicates (by exact original URL only)
+  // 1) Guard against duplicates
   const existing = await db.collection("images")
     .where("mjTaskId", "==", String(taskId))
     .where("originalUrl", "==", String(url))
@@ -117,13 +120,12 @@ async function persistMjImage({ url, prompt, uid, taskId }) {
   });
 
   if (id) {
-    // Minimal meta only: NO originalUrlNorm, NO sha256
     await db.collection("images").doc(id).set(
       {
         uid: uid || null,
         userId: FieldValueServer.delete(),
         mjTaskId: String(taskId),
-        originalUrl: String(url)
+        originalUrl: String(url) // only this; NO originalUrlNorm / sha256
       },
       { merge: true }
     );
@@ -133,8 +135,21 @@ async function persistMjImage({ url, prompt, uid, taskId }) {
 
 /* ---------------------------- Controllers ---------------------------- */
 
+/**
+ * POST /api/generate-image
+ * Body:
+ *  - prompt (string)
+ *  - image?: { dataUrl: "data:mime;base64,..." }
+ *  - provider?: "gemini" | "midjourney"   (default: "gemini")
+ *
+ * Rules:
+ *  - For "midjourney", aspect ratio is ALWAYS forced to "16:9".
+ *  - For "midjourney", image input is NOT allowed → 400 if present.
+ *  - We REQUIRE a uid for generator to avoid null-owned docs.
+ */
 export async function postGenerateImage(req, res) {
   try {
+    // Validate pricing env once per request (throws if missing)
     pricingCatalog();
   } catch (e) {
     if (e instanceof BillingConfigError) {
@@ -197,6 +212,7 @@ export async function postGenerateImage(req, res) {
         uid, prompt: promptStr, status: "QUEUED", provider: "midjourney"
       });
 
+      // Option B: NO billing event here (only on completion).
       return ok(res, { queued: true, provider: "midjourney", taskId });
     }
 
@@ -268,6 +284,16 @@ export async function postDeleteImage(req, res) {
 
 /* ------------------- Midjourney webhook + result fetch ------------------- */
 
+/**
+ * POST /api/webhooks/midjourney
+ * Validates optional secret, persists 4 images (when available), updates task doc.
+ * Also records a billing event (Option B): exactly one event per completed job,
+ * only if >=1 image was saved. If 0 images → no event.
+ *
+ * Body may be:
+ *  { task_id, status: "processing", percentage: "40" }
+ *  { task_id, task_type: "imagine", original_image_url, image_urls: [ ...4 urls... ] }
+ */
 export async function postMidjourneyWebhook(req, res) {
   try {
     const headerSecret = String(req.headers["x-webhook-secret"] || "").trim();
@@ -298,7 +324,7 @@ export async function postMidjourneyWebhook(req, res) {
       return ok(res, { ok: true });
     }
 
-    // Completed: persist up to 4 images (idempotent; no url normalization or hashing)
+    // Completed: persist up to 4 images (idempotent)
     const imageUrls = body.image_urls.slice(0, 4);
     const prompt = task?.prompt || "";
     const uid = task?.uid || null;
@@ -318,6 +344,52 @@ export async function postMidjourneyWebhook(req, res) {
       original_image_url: body.original_image_url || null,
       result_count: results.length
     });
+
+    // ---------- Billing (Option B): one event per completed job ----------
+    // Only if at least 1 image was saved successfully.
+    if (results.length > 0) {
+      // Guard against duplicate events if webhook retries:
+      const existing = await db.collection("billing_events")
+        .where("service", "==", "midjourney")
+        .where("request_id", "==", taskId)
+        .limit(1)
+        .get();
+
+      if (existing.empty) {
+        // Compute cost from env price
+        let costUsd = 0;
+        try {
+          costUsd = costMidjourneyJob({ jobs: 1 });
+        } catch {
+          // If pricing is misconfigured, we still write a $0 event to keep history.
+          costUsd = 0;
+        }
+
+        // Unit prices snapshot (only the Midjourney key to keep it tidy)
+        let unit_prices = null;
+        try {
+          const p = pricingCatalog();
+          unit_prices = { midjourney_per_job: p.midjourney_per_job };
+        } catch {
+          unit_prices = null;
+        }
+
+        await recordUsage({
+          ts: new Date(),
+          service: "midjourney",
+          action: "t2i",
+          kind: "image",
+          model: "midjourney",
+          request_id: taskId,
+          usage: { jobs: 1, images: results.length, taskId },
+          unit_prices,
+          cost_usd: costUsd,
+          // Optional: associate a representative imageId
+          imageId: results[0]?.id || null,
+          meta: { uid: uid || null }
+        });
+      }
+    }
 
     return ok(res, { ok: true, saved: results.length });
   } catch (e) {
@@ -343,6 +415,7 @@ export async function getMidjourneyResult(req, res) {
     const task = taskDoc.data() || {};
     if (task.uid && task.uid !== uid) return res.status(403).json({ error: "Forbidden" });
 
+    // Read image docs sans composite index; sort in memory
     const snap = await db.collection("images")
       .where("mjTaskId", "==", taskId)
       .limit(8)

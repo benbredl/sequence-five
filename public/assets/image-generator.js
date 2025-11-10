@@ -138,15 +138,6 @@
     const w0 = im.naturalWidth || im.width || 0;
     const h0 = im.naturalHeight || im.height || 0;
     const long0 = Math.max(w0, h0);
-    aconst_scale = long0 > MAX_LONG_EDGE ? (MAX_LONG_EDGE / long0) : 1; // typo fixed below
-  }
-
-  // (Fix: correct downscaleAndCompress — keeping original implementation)
-  async function downscaleAndCompress(dataUrl) {
-    const im = await imgFromDataUrl(dataUrl);
-    const w0 = im.naturalWidth || im.width || 0;
-    const h0 = im.naturalHeight || im.height || 0;
-    const long0 = Math.max(w0, h0);
     const scale = long0 > MAX_LONG_EDGE ? (MAX_LONG_EDGE / long0) : 1;
     const w = Math.max(1, Math.round(w0 * scale));
     const h = Math.max(1, Math.round(h0 * scale));

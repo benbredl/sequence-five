@@ -29,8 +29,8 @@ export const HTML = [
   .sb-list::before{
     content:"";
     position:absolute; top:0; bottom:0; left:13px;
-    width:1.2px;                               /* same width feel as card border */
-    background:var(--line-soft);               /* same color as card border */
+    width:1.2px;
+    background:var(--line-soft);
     pointer-events:none;
   }
 
@@ -84,14 +84,13 @@ export const HTML = [
     border-radius:14px; overflow:hidden;
     background:linear-gradient(180deg, var(--glass1), var(--glass2));
     border:1px solid var(--line-soft);
-    /* Keep the original intended framing — no change of image size here */
     aspect-ratio:16/9;
     width:100%;
-    cursor: zoom-in; /* clicking opens fullscreen */
+    cursor: zoom-in;
   }
   .sb-media img{ width:100%; height:100%; object-fit:cover; display:block }
 
-  /* Shot state pill: subtle, white border, non-bold, always visible, bottom-left */
+  /* Shot state pill */
   .sb-pill{
     position:absolute; left:8px; bottom:8px;
     display:inline-flex; align-items:center; gap:6px;
@@ -101,14 +100,13 @@ export const HTML = [
     background:rgba(0,0,0,.24);
     color:#fff;
     font-size:11px; font-weight:400; letter-spacing:.2px;
-    pointer-events:none; /* don’t block the click-to-open */
+    pointer-events:none;
   }
-  /* storyboard pill color when upscaled */
-.sb-pill.is-upscaled{
-  border-color:#6ee7b7;
-  color:#d1fae5;
-  background:linear-gradient(180deg,rgba(110,231,183,.16),rgba(110,231,183,.06));
-}
+  .sb-pill.is-upscaled{
+    border-color:#6ee7b7;
+    color:#d1fae5;
+    background:linear-gradient(180deg,rgba(110,231,183,.16),rgba(110,231,183,.06));
+  }
 
   .sb-right{ display:flex; flex-direction:column; min-height:0; }
 
@@ -125,7 +123,7 @@ export const HTML = [
     border:1px solid var(--line-soft);
     border-radius:14px;
     padding:12px 14px;
-    font-size:12px;
+    font-size:12px; /* shot description textarea font size */
     outline:none;
     resize:vertical;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
@@ -142,7 +140,7 @@ export const HTML = [
     background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035));
   }
 
-  /* Inline "Saved" indicator — sits beside the button */
+  /* Inline "Saved" indicator */
   .sb-saved{
     font-size:11px; color:#9fc29f; opacity:.0; transition:opacity .2s ease;
     display:inline-flex; align-items:center; gap:6px; margin:0 0 0 10px;
@@ -150,7 +148,7 @@ export const HTML = [
   .sb-saved.show{ opacity:1; }
   .sb-saved svg{ width:14px; height:14px; display:block }
 
-  /* Button row (Generate description + inline Saved) */
+  /* Button row */
   .sb-actions{ display:flex; align-items:center; gap:8px; margin-top:16px; }
 
   /* Action buttons column */
@@ -168,16 +166,15 @@ export const HTML = [
     border:1px solid var(--line-soft);
     color:#d7dbff;
     border-radius:10px;
-    padding:6px 10px;         /* smaller */
+    padding:6px 10px;
     font-weight:600;
-    font-size:11.5px;         /* smaller, more subtle */
+    font-size:11.5px;
     cursor:pointer;
     box-shadow:none;
   }
   .btn-small:hover{ filter:brightness(1.04) }
   .btn-small:disabled{ opacity:.6; cursor:not-allowed }
 
-  /* Visually different 'Delete' action (below Generate video) */
   .btn-danger{
     background:linear-gradient(180deg, rgba(255,80,80,.14), rgba(255,80,80,.06));
     border:1px solid rgba(255,96,96,.35);
@@ -193,7 +190,6 @@ export const HTML = [
     margin:10px 0;
   }
 
-  /* Subtle blue cues */
   @keyframes sb-borderColorPulseDesc {
     0%   { border-color: var(--line-soft); }
     18%  { border-color: rgba(79,141,253,.85); }
@@ -218,7 +214,7 @@ export const HTML = [
     .sb-card.reordered{ animation: none; }
   }
 
-  /* --- Account badge (logged-in indicator) --- */
+  /* --- Account badge --- */
   .account{margin:10px 6px 0;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--line-soft);background:linear-gradient(180deg, var(--glass1), var(--glass2));box-shadow:var(--shadow-soft)}
   .acct-photo{width:34px;height:34px;border-radius:10px;overflow:hidden;border:1px solid var(--line-soft);background:rgba(255,255,255,.06);flex:0 0 34px}
   .acct-photo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -233,6 +229,12 @@ export const HTML = [
   @keyframes skel{100%{transform:translateX(100%)}}
   .acct-name.skel{height:12px;border-radius:6px}
   .acct-sub.skel{height:10px;border-radius:6px;width:65%;margin-top:6px}
+
+  /* NEW: storyboard header description text size */
+  .sb-head-desc{
+    font-size:12px;
+    color: var(--muted);
+  }
     `, "</style></head>",
     "<body>",
     "<div class='app'>",
