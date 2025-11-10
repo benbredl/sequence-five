@@ -25,7 +25,7 @@ a#showAll.pill{display:inline-flex;align-items:center;justify-content:center;hei
 a#showAll.pill:hover{opacity:1}
 #prompt{font-size:12px}
 
-/* --- Account badge (logged-in indicator) --- */
+/* --- Account badge --- */
 .account{margin:10px 6px 0;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--line-soft);background:linear-gradient(180deg, var(--glass1), var(--glass2));box-shadow:var(--shadow-soft)}
 .acct-photo{width:34px;height:34px;border-radius:10px;overflow:hidden;border:1px solid var(--line-soft);background:rgba(255,255,255,.06);flex:0 0 34px}
 .acct-photo img{width:100%;height:100%;object-fit:cover;display:block}
@@ -38,8 +38,34 @@ a#showAll.pill:hover{opacity:1}
 .skel{position:relative;overflow:hidden;background:rgba(255,255,255,.06)}
 .skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);animation:skel 1.2s linear infinite}
 @keyframes skel{100%{transform:translateX(100%)}}
-.acct-name.skel{height:12px;border-radius:6px}
-.acct-sub.skel{height:10px;border-radius:6px;width:65%;margin-top:6px}
+
+/* -------- Provider toggle (Gemini <-> Midjourney) -------- */
+.provider{display:block;margin-top:10px}
+.ptgl{position:relative;display:flex;align-items:center;border:1px solid var(--line-soft);
+  background:linear-gradient(180deg,var(--glass1),var(--glass2));border-radius:14px;box-shadow:var(--shadow-soft);
+  padding:3px;height:38px;user-select:none;min-width:200px}
+.ptgl[aria-disabled="true"]{opacity:.55;pointer-events:none;filter:saturate(.8)}
+.ptgl .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;padding:0;margin:-1px}
+
+.ptgl .segments{position:relative;display:grid;grid-template-columns:1fr 1fr;align-items:center;width:100%;z-index:1}
+.ptgl .seg{font-weight:600;font-size:12px;letter-spacing:.15px;display:flex;align-items:center;justify-content:center;padding:6px 10px;color:var(--text)}
+.ptgl .thumb{position:absolute;inset:3px auto 3px 3px;width:calc(50% - 3px);border-radius:10px;border:1px solid color-mix(in oklab,var(--line-soft) 60%, white 10%);
+  background:linear-gradient(180deg, rgba(124,140,255,.18), rgba(124,140,255,.10));
+  box-shadow:0 2px 8px rgba(124,140,255,.18), inset 0 1px 0 rgba(255,255,255,.05);
+  transform:translateX(0);transition:transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .2s ease}
+.ptgl[data-checked="true"] .thumb{transform:translateX(100%);box-shadow:0 4px 14px rgba(124,140,255,.28), inset 0 1px 0 rgba(255,255,255,.06)}
+.ptgl:hover .thumb{box-shadow:0 6px 18px rgba(124,140,255,.28), inset 0 1px 0 rgba(255,255,255,.06)}
+
+.ptgl .glow{position:absolute;inset:-1px;border-radius:14px;pointer-events:none;opacity:0;transition:opacity .25s ease}
+.ptgl:hover .glow{opacity:.6}
+.ptgl .glow::before{content:"";position:absolute;inset:0;border-radius:14px;
+  background:radial-gradient(120px 36px at var(--gx,25%) 50%, rgba(124,140,255,.18), transparent 60%)}
+.ptgl[data-checked="true"] .glow::before{--gx:75%}
+
+.ptgl .seg--gem{opacity:.9}
+.ptgl .seg--mj{opacity:.7}
+.ptgl[data-checked="true"] .seg--gem{opacity:.7}
+.ptgl[data-checked="true"] .seg--mj{opacity:.95}
   `, "</style></head>",
   "<body>",
   "<div class='app'>",
@@ -111,13 +137,27 @@ a#showAll.pill:hover{opacity:1}
               "<button id='removeUpload' class='pill' style='display:none'>Remove</button>",
             "</div>",
 
+            /* Provider toggle placed directly under upload (no HTML comments used) */
+            "<div class='provider'>",
+              "<div class='ptgl' id='providerToggle' role='button' aria-pressed='false' aria-disabled='false' tabindex='0' title='Switch between Gemini and Midjourney (16:9)'>",
+                "<input id='useMj' class='visually-hidden' type='checkbox' aria-hidden='true'/>",
+                "<div class='thumb' aria-hidden='true'></div>",
+                "<div class='glow' aria-hidden='true'></div>",
+                "<div class='segments'>",
+                  "<div class='seg seg--gem'>Gemini</div>",
+                  "<div class='seg seg--mj'>Midjourney</div>",
+                "</div>",
+              "</div>",
+            "</div>",
+
             "<div style='margin-top:14px'>",
               "<label for='prompt'>Your prompt</label>",
               "<textarea id='prompt' placeholder='Describe the scene…'></textarea>",
             "</div>",
-            "<div class='row' style='margin-top:12px'>",
+
+            "<div class='row' style='margin-top:12px;gap:10px;align-items:center;flex-wrap:wrap'>",
               "<button id='generate' class='btn'>Generate</button>",
-              "<button id='enhance' class='btn-ghost' style='margin-left:8px'>Enhance text</button>",
+              "<button id='enhance' class='btn-ghost'>Enhance text</button>",
             "</div>",
           "</div>",
 
@@ -146,25 +186,12 @@ a#showAll.pill:hover{opacity:1}
   "<script>",
   `
   (function(){
-    var KEY='sf:acct', TTL=6*60*60*1000; // 6 hours
+    var KEY='sf:acct', TTL=6*60*60*1000;
 
-    function readCache(){
-      try{
-        var raw=localStorage.getItem(KEY); if(!raw) return null;
-        var obj=JSON.parse(raw); if(!obj||!obj.ts) return null;
-        if(Date.now()-obj.ts>TTL) return null;
-        return obj;
-      }catch(_){ return null }
-    }
-    function writeCache(data){
-      try{ localStorage.setItem(KEY, JSON.stringify({ ...data, ts: Date.now() })); }catch(_){}
-    }
+    function readCache(){ try{ var raw=localStorage.getItem(KEY); if(!raw) return null; var obj=JSON.parse(raw); if(!obj||!obj.ts) return null; if(Date.now()-obj.ts>TTL) return null; return obj; }catch(_){ return null } }
+    function writeCache(data){ try{ localStorage.setItem(KEY, JSON.stringify({ ...data, ts: Date.now() })); }catch(_){ } }
     function clearCache(){ try{ localStorage.removeItem(KEY); }catch(_){ } }
-    function unskeleton(){
-      var n=document.getElementById('acctName'); var s=document.getElementById('acctSub');
-      n && n.classList.remove('skel');
-      s && s.classList.remove('skel');
-    }
+    function unskeleton(){ var n=document.getElementById('acctName'); var s=document.getElementById('acctSub'); n && n.classList.remove('skel'); s && s.classList.remove('skel'); }
     function populate(data){
       var nameEl=document.getElementById('acctName');
       var subEl=document.getElementById('acctSub');
@@ -181,7 +208,6 @@ a#showAll.pill:hover{opacity:1}
       }
     }
 
-    // Pre-populate immediately from cache to avoid any loading flicker
     var bootCached = readCache();
     if (bootCached) { populate(bootCached); }
 
@@ -189,17 +215,10 @@ a#showAll.pill:hover{opacity:1}
     firebase.auth().onAuthStateChanged(async function(user){
       if (!user) { clearCache(); window.location.replace('/login'); return; }
 
-      // If cache exists for this user, we are done. Do NOT fetch Firestore.
       var cached = readCache();
       if (cached && cached.uid === user.uid) { return; }
 
-      // Otherwise, populate from Auth quickly, then fetch Firestore once and cache.
-      populate({
-        name: user.displayName || '',
-        sub: user.email || '',
-        photo: user.photoURL || '',
-        uid: user.uid
-      });
+      populate({ name: user.displayName || '', sub: user.email || '', photo: user.photoURL || '', uid: user.uid });
 
       try{
         var db=firebase.firestore();
@@ -218,7 +237,6 @@ a#showAll.pill:hover{opacity:1}
       }catch(_){}
     });
 
-    // Wire Logout link (and clear cache)
     document.addEventListener('DOMContentLoaded', function(){
       var logoutLink = Array.from(document.querySelectorAll('.nav a')).find(a => /logout/i.test(a.textContent || ''));
       if (logoutLink) {

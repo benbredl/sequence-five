@@ -62,6 +62,99 @@ export async function saveImageAndRecord({ mimeType, base64, prompt, model, stat
 }
 
 /**
+ * Save an image that is hosted remotely (download it, then store + create doc).
+ * Returns: { id, url, thumbUrl, tinyUrl }
+ */
+export async function saveRemoteImageAndRecord({ imageUrl, prompt, model, state, userId = null }) {
+  if (!imageUrl) throw new Error("imageUrl required");
+  const r = await fetch(String(imageUrl), { method: "GET" });
+  if (!r.ok) throw new Error(`Failed to download remote image (${r.status})`);
+  const mimeType = r.headers.get("content-type") || "image/jpeg";
+  const buf = Buffer.from(await r.arrayBuffer());
+
+  const id = uuidv4();
+  const ext = extFromMime(mimeType);
+  const folder = yyyymmdd();
+  const basePath = `images/${folder}/${id}.${ext}`;
+  const thumbPath = `images/${folder}/${id}_thumb.jpg`;
+  const tinyPath  = `images/${folder}/${id}_tiny.jpg`;
+
+  // Save master
+  const tokenBase = uuidv4();
+  await bucket.file(basePath).save(buf, {
+    metadata: {
+      contentType: mimeType,
+      cacheControl: "public, max-age=31536000, immutable",
+      metadata: { firebaseStorageDownloadTokens: tokenBase }
+    },
+    resumable: false
+  });
+
+  // Derive previews
+  let thumbJpeg, tinyJpeg;
+  try {
+    thumbJpeg = await sharp(buf, { failOn: "none" })
+      .rotate()
+      .resize({ width: 768, fit: "inside", withoutEnlargement: true, kernel: "lanczos3" })
+      .jpeg({ quality: 80, mozjpeg: true, chromaSubsampling: "4:4:4" })
+      .toBuffer();
+
+    tinyJpeg = await sharp(buf, { failOn: "none" })
+      .rotate()
+      .resize({ width: 320, fit: "inside", withoutEnlargement: true, kernel: "lanczos3" })
+      .jpeg({ quality: 72, mozjpeg: true, chromaSubsampling: "4:2:0" })
+      .toBuffer();
+  } catch (_e) {
+    // If sharp fails (rare), just skip previews
+    thumbJpeg = null;
+    tinyJpeg = null;
+  }
+
+  const tokenThumb = uuidv4();
+  const tokenTiny  = uuidv4();
+
+  await Promise.all([
+    thumbJpeg ? bucket.file(thumbPath).save(thumbJpeg, {
+      metadata: {
+        contentType: "image/jpeg",
+        cacheControl: "public, max-age=31536000, immutable",
+        metadata: { firebaseStorageDownloadTokens: tokenThumb }
+      },
+      resumable: false
+    }) : Promise.resolve(),
+    tinyJpeg ? bucket.file(tinyPath).save(tinyJpeg, {
+      metadata: {
+        contentType: "image/jpeg",
+        cacheControl: "public, max-age=31536000, immutable",
+        metadata: { firebaseStorageDownloadTokens: tokenTiny }
+      },
+      resumable: false
+    }) : Promise.resolve()
+  ]);
+
+  const enc = (p) => encodeURIComponent(p);
+  const url      = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${enc(basePath)}?alt=media&token=${tokenBase}`;
+  const thumbUrl = thumbJpeg ? `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${enc(thumbPath)}?alt=media&token=${tokenThumb}` : null;
+  const tinyUrl  = tinyJpeg ? `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${enc(tinyPath)}?alt=media&token=${tokenTiny}` : null;
+
+  await db.collection("images").doc(id).set({
+    url,
+    thumbUrl,
+    tinyUrl,
+    upscaledUrl: null,
+    path: basePath,
+    prompt,
+    model: model || "external",
+    state: state || "base-image",
+    mimeType,
+    userId: userId || null,
+    createdAt: FieldValueServer.serverTimestamp()
+  });
+
+  return { id, url, thumbUrl, tinyUrl };
+}
+
+/**
  * Save an upscaled variant for an existing image.
  * - Writes to `${baseNoExt}_upscaled.<ext>` (keeps ext from mime)
  * - Updates image doc with { upscaledUrl, upscaledPath } (state promotion is done by controller).

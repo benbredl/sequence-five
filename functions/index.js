@@ -4,6 +4,7 @@ import app from "./app.js";
 
 const GOOGLE_API_KEY = defineSecret("GOOGLE_API_KEY");
 const ENHANCOR_API_KEY = defineSecret("ENHANCOR_API_KEY");
+const APIFRAME_API_KEY = defineSecret("APIFRAME_API_KEY");
 const BASIC_AUTH_USER = defineSecret("BASIC_AUTH_USER");
 const BASIC_AUTH_PASS = defineSecret("BASIC_AUTH_PASS");
 const FIREBASE_STORAGE_BUCKET = defineSecret("FIREBASE_STORAGE_BUCKET");
@@ -23,6 +24,7 @@ export const web = onRequest(
     secrets: [
       GOOGLE_API_KEY,
       ENHANCOR_API_KEY,
+      APIFRAME_API_KEY,
       BASIC_AUTH_USER,
       BASIC_AUTH_PASS,
       FIREBASE_STORAGE_BUCKET,

@@ -3,8 +3,13 @@ import { Router } from "express";
 import { a } from "../utils/async.js";
 
 import { postEnhance } from "../controllers/enhance.controller.js";
-import { postGenerateImage, postDeleteImage } from "../controllers/images.controller.js";
-import { getArchive, postArchiveUpload } from "../controllers/archive.controller.js"; // ← add postArchiveUpload
+import {
+  postGenerateImage,
+  postDeleteImage,
+  postMidjourneyWebhook,
+  getMidjourneyResult
+} from "../controllers/images.controller.js";
+import { getArchive, postArchiveUpload } from "../controllers/archive.controller.js";
 import { getSummary } from "../controllers/billing.controller.js";
 import {
   createStoryboard,
@@ -51,7 +56,11 @@ router.post("/api/image/upscale", a(postUpscaleStart));
 router.post("/api/image/upscale-status", a(postUpscaleStatus));
 router.post("/api/webhooks/enhancor", a(postEnhancorWebhook));
 
-// --- NEW: Archive Upload ---
-router.post("/api/archive/upload", a(postArchiveUpload)); // ← this fixes the 404
+// Midjourney (NEW)
+router.post("/api/webhooks/midjourney", a(postMidjourneyWebhook));
+router.get("/api/mj-result", a(getMidjourneyResult));
+
+// Archive upload
+router.post("/api/archive/upload", a(postArchiveUpload));
 
 export default router;
